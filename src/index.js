@@ -28,6 +28,20 @@ function validateContent(content) {
   return trimmed;
 }
 
+function validateTagName(name) {
+  if (typeof name !== 'string') {
+    throw new Error('Tag name must be a string');
+  }
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    throw new Error('Tag name cannot be empty');
+  }
+  if (trimmed.length > 50) {
+    throw new Error('Tag name too long (max 50 characters)');
+  }
+  return trimmed;
+}
+
 function sanitizeForHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -48,28 +62,105 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // GET /api/memos - List memos with optional date filter
+    // GET /api/memos - List memos with filters, search, pagination
     if (url.pathname === '/api/memos' && request.method === 'GET') {
       try {
         const date = url.searchParams.get('date');
-        let query = 'SELECT id, content, created_at as createdAt, updated_at as updatedAt FROM memos';
+        const search = url.searchParams.get('search');
+        const tag = url.searchParams.get('tag');
+        const page = parseInt(url.searchParams.get('page') || '1', 10);
+        const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+        const offset = (page - 1) * limit;
+        
+        let query = `
+          SELECT DISTINCT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt
+          FROM memos m
+          LEFT JOIN memo_tags mt ON m.id = mt.memo_id
+          LEFT JOIN tags t ON mt.tag_id = t.id
+          WHERE m.deleted_at IS NULL
+        `;
         const params = [];
+        let paramIndex = 0;
         
         if (date) {
-          // Validate date format (YYYY-MM-DD)
           if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             return createResponse({ error: 'Invalid date format. Use YYYY-MM-DD' }, 400, corsHeaders);
           }
           const startDate = date + 'T00:00:00.000Z';
           const endDate = date + 'T23:59:59.999Z';
-          query += ' WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC';
+          query += ` AND m.created_at >= ? AND m.created_at <= ?`;
           params.push(startDate, endDate);
-        } else {
-          query += ' ORDER BY created_at DESC';
+          paramIndex += 2;
         }
         
+        if (search) {
+          query += ` AND m.content LIKE ?`;
+          params.push(`%${search}%`);
+          paramIndex += 1;
+        }
+        
+        if (tag) {
+          query += ` AND t.name = ?`;
+          params.push(tag);
+          paramIndex += 1;
+        }
+        
+        query += ` ORDER BY m.created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+        
         const { results } = await env.DB.prepare(query).bind(...params).all();
-        return createResponse({ memos: results }, 200, corsHeaders);
+        
+        // Get total count
+        let countQuery = `
+          SELECT COUNT(DISTINCT m.id) as total
+          FROM memos m
+          LEFT JOIN memo_tags mt ON m.id = mt.memo_id
+          LEFT JOIN tags t ON mt.tag_id = t.id
+          WHERE m.deleted_at IS NULL
+        `;
+        const countParams = [];
+        let countParamIndex = 0;
+        
+        if (date) {
+          const startDate = date + 'T00:00:00.000Z';
+          const endDate = date + 'T23:59:59.999Z';
+          countQuery += ` AND m.created_at >= ? AND m.created_at <= ?`;
+          countParams.push(startDate, endDate);
+          countParamIndex += 2;
+        }
+        
+        if (search) {
+          countQuery += ` AND m.content LIKE ?`;
+          countParams.push(`%${search}%`);
+          countParamIndex += 1;
+        }
+        
+        if (tag) {
+          countQuery += ` AND t.name = ?`;
+          countParams.push(tag);
+          countParamIndex += 1;
+        }
+        
+        const { results: countResults } = await env.DB.prepare(countQuery).bind(...countParams).all();
+        const total = countResults[0]?.total || 0;
+        
+        // Get tags for each memo
+        const memosWithTags = await Promise.all(results.map(async (memo) => {
+          const { results: tagResults } = await env.DB.prepare(
+            `SELECT t.id, t.name FROM tags t JOIN memo_tags mt ON t.id = mt.tag_id WHERE mt.memo_id = ?`
+          ).bind(memo.id).all();
+          return { ...memo, tags: tagResults };
+        }));
+        
+        return createResponse({
+          memos: memosWithTags,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+          }
+        }, 200, corsHeaders);
       } catch (error) {
         return createResponse({ error: error.message }, 500, corsHeaders);
       }
@@ -97,10 +188,46 @@ export default {
         ).bind(content, now, now).run();
         
         if (success) {
-          const { results } = await env.DB.prepare(
-            'SELECT id, content, created_at as createdAt, updated_at as updatedAt FROM memos ORDER BY created_at DESC LIMIT 1'
+          const { results: idResult } = await env.DB.prepare(
+            'SELECT id FROM memos ORDER BY created_at DESC LIMIT 1'
           ).all();
-          return createResponse({ memo: results[0] }, 201, corsHeaders);
+          const memoId = idResult[0].id;
+          
+          // Handle tags
+          if (body.tags && Array.isArray(body.tags)) {
+            for (const tagName of body.tags) {
+              const trimmedTag = validateTagName(tagName);
+              // Insert tag if not exists
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
+              ).bind(trimmedTag, now).run();
+              
+              // Get tag id
+              const { results: tagResult } = await env.DB.prepare(
+                `SELECT id FROM tags WHERE name = ?`
+              ).bind(trimmedTag).all();
+              
+              if (tagResult.length > 0) {
+                await env.DB.prepare(
+                  `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
+                ).bind(memoId, tagResult[0].id).run();
+              }
+            }
+          }
+          
+          const { results } = await env.DB.prepare(
+            `SELECT m.*, GROUP_CONCAT(t.name) as tags
+             FROM memos m
+             LEFT JOIN memo_tags mt ON m.id = mt.memo_id
+             LEFT JOIN tags t ON mt.tag_id = t.id
+             WHERE m.id = ?
+             GROUP BY m.id`
+          ).bind(memoId).all();
+          
+          const memo = results[0];
+          memo.tags = memo.tags ? memo.tags.split(',') : [];
+          
+          return createResponse({ memo }, 201, corsHeaders);
         } else {
           return createResponse({ error: 'Failed to create memo' }, 500, corsHeaders);
         }
@@ -130,19 +257,51 @@ export default {
         const now = new Date().toISOString();
         
         const { success } = await env.DB.prepare(
-          'UPDATE memos SET content = ?, updated_at = ? WHERE id = ?'
+          'UPDATE memos SET content = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         ).bind(content, now, id).run();
         
         if (success) {
+          // Update tags if provided
+          if (body.tags && Array.isArray(body.tags)) {
+            // Remove existing tags
+            await env.DB.prepare(`DELETE FROM memo_tags WHERE memo_id = ?`).bind(id).run();
+            
+            // Add new tags
+            for (const tagName of body.tags) {
+              const trimmedTag = validateTagName(tagName);
+              await env.DB.prepare(
+                `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
+              ).bind(trimmedTag, now).run();
+              
+              const { results: tagResult } = await env.DB.prepare(
+                `SELECT id FROM tags WHERE name = ?`
+              ).bind(trimmedTag).all();
+              
+              if (tagResult.length > 0) {
+                await env.DB.prepare(
+                  `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
+                ).bind(id, tagResult[0].id).run();
+              }
+            }
+          }
+          
           const { results } = await env.DB.prepare(
-            'SELECT id, content, created_at as createdAt, updated_at as updatedAt FROM memos WHERE id = ?'
+            `SELECT m.*, GROUP_CONCAT(t.name) as tags
+             FROM memos m
+             LEFT JOIN memo_tags mt ON m.id = mt.memo_id
+             LEFT JOIN tags t ON mt.tag_id = t.id
+             WHERE m.id = ?
+             GROUP BY m.id`
           ).bind(id).all();
           
           if (results.length === 0) {
             return createResponse({ error: 'Memo not found' }, 404, corsHeaders);
           }
           
-          return createResponse({ memo: results[0] }, 200, corsHeaders);
+          const memo = results[0];
+          memo.tags = memo.tags ? memo.tags.split(',') : [];
+          
+          return createResponse({ memo }, 200, corsHeaders);
         } else {
           return createResponse({ error: 'Failed to update memo' }, 500, corsHeaders);
         }
@@ -151,20 +310,90 @@ export default {
       }
     }
 
-    // DELETE /api/memos/:id - Delete memo
+    // DELETE /api/memos/:id - Soft delete memo
     if (url.pathname.startsWith('/api/memos/') && request.method === 'DELETE') {
       try {
         const id = url.pathname.split('/').pop();
         validateId(id);
         
+        const now = new Date().toISOString();
         const { success } = await env.DB.prepare(
-          'DELETE FROM memos WHERE id = ?'
-        ).bind(id).run();
+          'UPDATE memos SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
+        ).bind(now, id).run();
         
         if (success) {
           return createResponse({ success: true, message: 'Memo deleted' }, 200, corsHeaders);
         } else {
           return createResponse({ error: 'Memo not found' }, 404, corsHeaders);
+        }
+      } catch (error) {
+        return createResponse({ error: error.message }, 400, corsHeaders);
+      }
+    }
+
+    // GET /api/tags - List all tags
+    if (url.pathname === '/api/tags' && request.method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          `SELECT t.*, COUNT(mt.memo_id) as memo_count
+           FROM tags t
+           LEFT JOIN memo_tags mt ON t.id = mt.tag_id
+           GROUP BY t.id
+           ORDER BY t.name`
+        ).all();
+        
+        return createResponse({ tags: results }, 200, corsHeaders);
+      } catch (error) {
+        return createResponse({ error: error.message }, 500, corsHeaders);
+      }
+    }
+
+    // DELETE /api/tags/:id - Delete tag
+    if (url.pathname.startsWith('/api/tags/') && request.method === 'DELETE') {
+      try {
+        const id = url.pathname.split('/').pop();
+        validateId(id);
+        
+        const { success } = await env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
+        
+        if (success) {
+          return createResponse({ success: true, message: 'Tag deleted' }, 200, corsHeaders);
+        } else {
+          return createResponse({ error: 'Tag not found' }, 404, corsHeaders);
+        }
+      } catch (error) {
+        return createResponse({ error: error.message }, 400, corsHeaders);
+      }
+    }
+
+    // POST /api/tags - Create tag
+    if (url.pathname === '/api/tags' && request.method === 'POST') {
+      try {
+        let body;
+        try {
+          body = await request.json();
+        } catch {
+          return createResponse({ error: 'Invalid JSON body' }, 400, corsHeaders);
+        }
+
+        if (!body || !body.name) {
+          return createResponse({ error: 'Tag name is required' }, 400, corsHeaders);
+        }
+
+        const name = validateTagName(body.name);
+        const now = new Date().toISOString();
+        
+        const { success } = await env.DB.prepare(
+          'INSERT INTO tags (name, created_at) VALUES (?, ?)'
+        ).bind(name, now).run();
+        
+        if (success) {
+          const { results } = await env.DB.prepare(
+            'SELECT * FROM tags ORDER BY created_at DESC LIMIT 1'
+          ).all();
+          return createResponse({ tag: results[0] }, 201, corsHeaders);
+        } else {
+          return createResponse({ error: 'Tag already exists' }, 409, corsHeaders);
         }
       } catch (error) {
         return createResponse({ error: error.message }, 400, corsHeaders);
@@ -232,7 +461,7 @@ function getHtml() {
     .calendar-day.has-memo::after { content: ''; position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%); width: 5px; height: 5px; background: #28a745; border-radius: 50%; }
     .calendar-day.other-month { color: #ccc; }
     .calendar-day.today { border: 2px solid #007bff; }
-    .filter-info { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px 15px; background: #e7f3ff; border-radius: 8px; }
+    .filter-info { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 10px 15px; background: #e7f3ff; border-radius: 8px; flex-wrap: wrap; }
     .filter-info span { color: #007bff; font-weight: 500; }
     .clear-filter { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 14px; }
     .clear-filter:hover { text-decoration: underline; }
@@ -242,64 +471,45 @@ function getHtml() {
       .sidebar { width: 100%; height: auto; position: relative; box-shadow: none; border-bottom: 1px solid #eee; }
     }
 
-/* Dark theme styles */
-.dark-theme {
-  background: #1e1e1e;
-  color: #f5f5f5;
-}
-.dark-theme .layout,
-.dark-theme .sidebar,
-.dark-theme .main,
-.dark-theme .input-area,
-.dark-theme .memo,
-.dark-theme .calendar-day,
-.dark-theme .filter-info,
-.dark-theme .sidebar-title,
-.dark-theme .btn,
-.dark-theme .btn-search,
-.dark-theme .btn-theme {
-  background: #1e1e1e;
-  color: #f5f5f5;
-}
+    /* Tags styles */
+    .tags-area { margin-bottom: 20px; }
+    .tags-title { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 10px; }
+    .tags-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag { background: #e9ecef; color: #495057; padding: 4px 10px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+    .tag:hover { background: #dee2e6; }
+    .tag.active { background: #007bff; color: white; }
+    .tag-delete { margin-left: 4px; opacity: 0.6; }
+    .tag-delete:hover { opacity: 1; }
+    .add-tag-form { display: flex; gap: 6px; margin-top: 10px; }
+    .add-tag-form input { flex: 1; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; }
+    .add-tag-form button { padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
 
-/* 增强对比度 */
-.dark-theme textarea {
-  background: #2e2e2e;
-  color: #f5f5f5;
-  border-color: #555;
-}
-.dark-theme .btn,
-.dark-theme .btn-search,
-.dark-theme .btn-theme {
-  background: #3a3a3a;
-  color: #f5f5f5;
-}
+    /* Pagination styles */
+    .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 20px; padding: 20px; }
+    .pagination button { padding: 8px 14px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+    .pagination button:hover:not(:disabled) { background: #f0f0f0; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pagination button.active { background: #007bff; color: white; border-color: #007bff; }
+    .pagination-info { text-align: center; color: #666; font-size: 14px; margin-top: 10px; }
 
-/* 进一步提升对比度 */
-  .dark-theme .memo {
-    background: #000000;
-    color: #ffffff;
-    border: 1px solid #777777;
-    box-shadow: 0 0 8px rgba(255,255,255,0.5);
-  }
+    /* Search highlight */
+    .highlight { background: #fff3cd; padding: 0 2px; border-radius: 2px; }
 
-  /* Memo content text color for dark theme */
-  .dark-theme .memo-content {
-    color: #ffffff;
-  }
-
-/* Increase contrast for memo time in dark mode */
-.dark-theme .memo-time {
-  color: #ffffff;
-}
-.dark-theme .calendar-day {
-  background: #2a2a2a;
-  color: #e0e0e0;
-}
-.dark-theme .filter-info {
-  background: #2a2a2a;
-  color: #e0e0e0;
-}
+    /* Dark theme styles */
+    .dark-theme { background: #1e1e1e; color: #f5f5f5; }
+    .dark-theme .layout, .dark-theme .sidebar, .dark-theme .main, .dark-theme .input-area, .dark-theme .memo, .dark-theme .calendar-day, .dark-theme .filter-info, .dark-theme .sidebar-title, .dark-theme .btn, .dark-theme .btn-search, .dark-theme .btn-theme { background: #1e1e1e; color: #f5f5f5; }
+    .dark-theme textarea { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
+    .dark-theme .btn, .dark-theme .btn-search, .dark-theme .btn-theme { background: #3a3a3a; color: #f5f5f5; }
+    .dark-theme .memo { background: #000000; color: #ffffff; border: 1px solid #777777; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
+    .dark-theme .memo-content { color: #ffffff; }
+    .dark-theme .memo-time { color: #ffffff; }
+    .dark-theme .calendar-day { background: #2a2a2a; color: #e0e0e0; }
+    .dark-theme .filter-info { background: #2a2a2a; color: #e0e0e0; }
+    .dark-theme .tag { background: #3a3a3a; color: #e0e0e0; }
+    .dark-theme .tag:hover { background: #4a4a4a; }
+    .dark-theme .add-tag-form input { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
+    .dark-theme .pagination button { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
+    .dark-theme .pagination button:hover:not(:disabled) { background: #3a3a3a; }
   </style>
 </head>
 <body>
@@ -314,27 +524,45 @@ function getHtml() {
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
       </div>
+      
+      <div class="tags-area">
+        <div class="tags-title">🏷️ 标签</div>
+        <div class="tags-list" id="tagsList"></div>
+        <div class="add-tag-form">
+          <input type="text" id="newTagInput" placeholder="新标签..." maxlength="50">
+          <button onclick="addTag()">添加</button>
+        </div>
+      </div>
+      
       <div id="filterInfo"></div>
     </div>
     <div class="main">
       <h1>📝 Memos</h1>
       <div class="input-area">
         <textarea id="memoInput" placeholder="写下你的想法..."></textarea>
+        <div style="margin-top: 10px;">
+          <input type="text" id="tagsInput" placeholder="标签（用逗号分隔）..." style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+        </div>
         <button class="btn" id="addBtn" onclick="addMemo()">添加 Memo</button>
         <button class="btn btn-search" id="searchBtn" onclick="toggleSearch()">🔍</button>
         <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">🌙</button>
       </div>
       <div class="memos-list" id="memosList"></div>
+      <div id="pagination"></div>
     </div>
   </div>
   <script>
     let editingId = null;
     let currentMonth = new Date();
     let selectedDate = null;
+    let selectedTag = null;
     let allMemos = [];
     let refreshInterval = null;
     let isSearching = false;
     let searchMode = false;
+    let currentPage = 1;
+    let totalPages = 1;
+    let currentSearchKeyword = '';
 
     const monthNames = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
     const dayNames = ["日", "一", "二", "三", "四", "五", "六"];
@@ -400,20 +628,23 @@ function getHtml() {
 
     function selectDate(year, month, day) {
       selectedDate = new Date(year, month, day);
+      selectedTag = null;
+      currentPage = 1;
       renderCalendar();
       filterByDate(selectedDate);
     }
 
     function filterByDate(date) {
-      // 使用本地日期格式，避免时区问题
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       const dateStr = year + '-' + month + '-' + day;
-      fetch("/api/memos?date=" + dateStr)
+      
+      fetch("/api/memos?date=" + dateStr + "&page=" + currentPage)
         .then(function(res) { return res.json(); })
         .then(function(data) {
           renderMemos(data.memos);
+          renderPagination(data.pagination);
           const filterInfo = document.getElementById("filterInfo");
           const dateDisplay = date.getFullYear() + "年" + (date.getMonth() + 1) + "月" + date.getDate() + "日";
           filterInfo.innerHTML = '<div class="filter-info"><span>📅 ' + dateDisplay + '</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>';
@@ -422,24 +653,33 @@ function getHtml() {
 
     function clearFilter() {
       selectedDate = null;
+      selectedTag = null;
+      currentPage = 1;
       renderCalendar();
       document.getElementById("filterInfo").innerHTML = "";
       loadMemos();
     }
 
     function loadMemos() {
-      fetch("/api/memos")
+      let url = "/api/memos?page=" + currentPage;
+      if (selectedDate) {
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        url = "/api/memos?date=" + year + '-' + month + '-' + day + "&page=" + currentPage;
+      } else if (selectedTag) {
+        url = "/api/memos?tag=" + encodeURIComponent(selectedTag) + "&page=" + currentPage;
+      }
+      
+      fetch(url)
         .then(function(res) { return res.json(); })
         .then(function(data) {
           allMemos = data.memos;
           renderCalendar();
-          if (!isSearching && !selectedDate) {
+          if (!isSearching && !selectedDate && !selectedTag) {
             renderMemos(data.memos);
           }
-          // 如果有选中日期，重新应用日期过滤
-          if (selectedDate && !isSearching) {
-            filterByDate(selectedDate);
-          }
+          renderPagination(data.pagination);
         });
     }
 
@@ -451,13 +691,55 @@ function getHtml() {
       }
       let html = "";
       memos.forEach(function(memo) {
+        const tagsHtml = memo.tags && memo.tags.length > 0 
+          ? '<div class="memo-tags" style="margin-top: 10px;">' + memo.tags.map(function(t) {
+              return '<span class="tag" onclick="filterByTag(\'' + escapeHtml(t) + '\')" style="margin-right: 4px;">' + escapeHtml(t) + '</span>';
+            }).join('') + '</div>'
+          : '';
+        
         if (editingId === memo.id) {
-          html = html + '<div class="memo" id="memo-' + memo.id + '"><textarea id="edit-' + memo.id + '" style="width:100%;height:80px;border:2px solid #007bff;border-radius:8px;padding:10px;font-size:16px;resize:vertical;">' + escapeHtml(memo.content) + '</textarea><div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div><div class="memo-actions"><button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="保存">✓</button><button class="icon-btn icon-cancel" onclick="cancelEdit()" title="取消">✕</button></div></div>';
+          const currentTags = memo.tags ? memo.tags.join(', ') : '';
+          html = html + '<div class="memo" id="memo-' + memo.id + '"><textarea id="edit-' + memo.id + '" style="width:100%;height:80px;border:2px solid #007bff;border-radius:8px;padding:10px;font-size:16px;resize:vertical;">' + escapeHtml(memo.content) + '</textarea><input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="标签（用逗号分隔）..." style="width:100%;margin-top:8px;padding:8px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;"><div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div>' + tagsHtml + '<div class="memo-actions"><button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="保存">✓</button><button class="icon-btn icon-cancel" onclick="cancelEdit()" title="取消">✕</button></div></div>';
         } else {
-          html = html + '<div class="memo" id="memo-' + memo.id + '"><div class="memo-content">' + escapeHtml(memo.content) + '</div><div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div><div class="memo-actions"><button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">✎</button><button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="删除">✕</button></div></div>';
+          let content = memo.content;
+          if (currentSearchKeyword) {
+            const regex = new RegExp('(' + currentSearchKeyword + ')', 'gi');
+            content = content.replace(regex, '<span class="highlight">$1</span>');
+          }
+          html = html + '<div class="memo" id="memo-' + memo.id + '"><div class="memo-content">' + content + '</div>' + tagsHtml + '<div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div><div class="memo-actions"><button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">✎</button><button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="删除">✕</button></div></div>';
         }
       });
       container.innerHTML = html;
+    }
+
+    function renderPagination(pagination) {
+      if (!pagination || pagination.totalPages <= 1) {
+        document.getElementById("pagination").innerHTML = '';
+        return;
+      }
+      
+      let html = '<div class="pagination">';
+      html += '<button onclick="goToPage(' + (pagination.page - 1) + ')" ' + (pagination.page === 1 ? 'disabled' : '') + '>上一页</button>';
+      
+      for (let i = 1; i <= pagination.totalPages; i++) {
+        if (i === 1 || i === pagination.totalPages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+          html += '<button onclick="goToPage(' + i + ')" ' + (i === pagination.page ? 'class="active"' : '') + '>' + i + '</button>';
+        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
+          html += '<span style="padding: 8px;">...</span>';
+        }
+      }
+      
+      html += '<button onclick="goToPage(' + (pagination.page + 1) + ')" ' + (pagination.page === pagination.totalPages ? 'disabled' : '') + '>下一页</button>';
+      html += '</div>';
+      html += '<div class="pagination-info">第 ' + pagination.page + ' 页，共 ' + pagination.totalPages + ' 页 (' + pagination.total + ' 条)</div>';
+      
+      document.getElementById("pagination").innerHTML = html;
+    }
+
+    function goToPage(page) {
+      if (page < 1 || page > totalPages) return;
+      currentPage = page;
+      loadMemos();
     }
 
     function escapeHtml(text) {
@@ -468,26 +750,36 @@ function getHtml() {
 
     function addMemo() {
       const input = document.getElementById("memoInput");
+      const tagsInput = document.getElementById("tagsInput");
       const content = input.value.trim();
       if (!content) return alert("请输入内容");
+      
+      const tagsValue = tagsInput.value.trim();
+      const tags = tagsValue ? tagsValue.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
 
       fetch("/api/memos", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ content: content })
+        body: JSON.stringify({ content: content, tags: tags })
       }).then(function() {
         input.value = "";
+        tagsInput.value = "";
         loadMemos();
+        loadTags();
       });
     }
 
     function deleteMemo(id) {
       if (!confirm("确定要删除这个 memo 吗？")) return;
-      fetch("/api/memos/" + id, { method: "DELETE" }).then(loadMemos);
+      fetch("/api/memos/" + id, { method: "DELETE" }).then(function() {
+        loadMemos();
+        loadTags();
+      });
     }
 
     loadMemos();
-    refreshInterval = setInterval(loadMemos, 3000);
+    loadTags();
+    refreshInterval = setInterval(loadMemos, 30000);
 
     function startEdit(id) {
       editingId = id;
@@ -507,24 +799,29 @@ function getHtml() {
 
     function saveEdit(id) {
       const textarea = document.getElementById("edit-" + id);
+      const tagsInput = document.getElementById("edit-tags-" + id);
       const content = textarea.value.trim();
       if (!content) return alert("内容不能为空");
+      
+      const tagsValue = tagsInput ? tagsInput.value.trim() : '';
+      const tags = tagsValue ? tagsValue.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
 
       fetch("/api/memos/" + id, {
         method: "PUT",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ content: content })
+        body: JSON.stringify({ content: content, tags: tags })
       }).then(function() {
         editingId = null;
         loadMemos();
-        refreshInterval = setInterval(loadMemos, 3000);
+        loadTags();
+        refreshInterval = setInterval(loadMemos, 30000);
       });
     }
 
     function cancelEdit() {
       editingId = null;
       loadMemos();
-      refreshInterval = setInterval(loadMemos, 3000);
+      refreshInterval = setInterval(loadMemos, 30000);
     }
 
     function toggleSearch() {
@@ -542,7 +839,6 @@ function getHtml() {
         searchBtn.style.background = "#6c757d";
         input.value = "";
         input.focus();
-        // 不再这里设置 isSearching，让 loadMemos 继续渲染
         if (refreshInterval) {
           clearInterval(refreshInterval);
           refreshInterval = null;
@@ -552,43 +848,39 @@ function getHtml() {
       }
     }
 
-function searchMemos() {
-  const input = document.getElementById("memoInput");
-  const keyword = input.value.trim().toLowerCase();
-  if (!keyword) return alert("请输入搜索关键词");
-
-  // 标记为搜索状态，防止 loadMemos 重新渲染
-  isSearching = true;
-  searchMode = true;
-
-  fetch("/api/memos")
-    .then(function(res) { return res.json(); })
-    .then(function(data) {
-      allMemos = data.memos;
-      renderCalendar();
-      doSearch(keyword);
-    })
-    .catch(function(err) {
-      console.error("搜索失败:", err);
-      alert("搜索时出现错误，请稍后重试");
-      isSearching = false;
-      searchMode = false;
-    });
-}
-
-    function doSearch(keyword) {
-      const filtered = allMemos.filter(function(memo) {
-        return memo.content.toLowerCase().indexOf(keyword) !== -1;
-      });
-
+    function searchMemos() {
+      const input = document.getElementById("memoInput");
+      const keyword = input.value.trim();
+      if (!keyword) return alert("请输入搜索关键词");
+      
+      currentSearchKeyword = keyword.toLowerCase();
+      selectedDate = null;
+      selectedTag = null;
+      currentPage = 1;
       isSearching = true;
-      renderMemos(filtered);
-      document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span>🔍 搜索: ' + keyword + ' (' + filtered.length + '条)</span><button class="clear-filter" onclick="clearSearch()">清除</button></div>';
+      searchMode = true;
+
+      fetch("/api/memos?search=" + encodeURIComponent(keyword) + "&page=" + currentPage)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          allMemos = data.memos;
+          renderCalendar();
+          renderMemos(data.memos);
+          renderPagination(data.pagination);
+          document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span>🔍 搜索: ' + escapeHtml(keyword) + ' (' + data.pagination.total + '条)</span><button class="clear-filter" onclick="clearSearch()">清除</button></div>';
+        })
+        .catch(function(err) {
+          console.error("搜索失败:", err);
+          alert("搜索时出现错误，请稍后重试");
+          isSearching = false;
+          searchMode = false;
+        });
     }
 
     function clearSearch() {
       searchMode = false;
       isSearching = false;
+      currentSearchKeyword = '';
       const input = document.getElementById("memoInput");
       const addBtn = document.getElementById("addBtn");
       const searchBtn = document.getElementById("searchBtn");
@@ -602,14 +894,9 @@ function searchMemos() {
       document.getElementById("filterInfo").innerHTML = "";
 
       if (!refreshInterval) {
-        refreshInterval = setInterval(loadMemos, 3000);
+        refreshInterval = setInterval(loadMemos, 30000);
       }
-      // 如果有选中日期，应用日期过滤；否则加载所有 memos
-      if (selectedDate) {
-        filterByDate(selectedDate);
-      } else {
-        loadMemos();
-      }
+      loadMemos();
     }
 
     function toggleTheme() {
@@ -621,6 +908,78 @@ function searchMemos() {
         btn.textContent = '🌙';
       }
     }
+
+    // Tags functions
+    function loadTags() {
+      fetch("/api/tags")
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          const container = document.getElementById("tagsList");
+          if (data.tags.length === 0) {
+            container.innerHTML = '<span style="color:#999;font-size:12px;">暂无标签</span>';
+            return;
+          }
+          let html = "";
+          data.tags.forEach(function(tag) {
+            const isActive = selectedTag === tag.name;
+            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + escapeHtml(tag.name) + '\')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
+          });
+          container.innerHTML = html;
+        });
+    }
+
+    function addTag() {
+      const input = document.getElementById("newTagInput");
+      const name = input.value.trim();
+      if (!name) return alert("请输入标签名称");
+      
+      fetch("/api/tags", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ name: name })
+      }).then(function(res) {
+        if (res.ok) {
+          input.value = "";
+          loadTags();
+        } else {
+          res.json().then(function(data) {
+            alert(data.error || "创建标签失败");
+          });
+        }
+      });
+    }
+
+    function deleteTag(id) {
+      if (!confirm("确定要删除这个标签吗？")) return;
+      fetch("/api/tags/" + id, { method: "DELETE" }).then(function() {
+        loadTags();
+      });
+    }
+
+    function filterByTag(tagName) {
+      selectedTag = tagName;
+      selectedDate = null;
+      currentPage = 1;
+      currentSearchKeyword = '';
+      
+      fetch("/api/memos?tag=" + encodeURIComponent(tagName) + "&page=" + currentPage)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          allMemos = data.memos;
+          renderCalendar();
+          renderMemos(data.memos);
+          renderPagination(data.pagination);
+          loadTags();
+          document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span>🏷️ ' + escapeHtml(tagName) + ' (' + data.pagination.total + '条)</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>';
+        });
+    }
+
+    // Enter key for adding tags
+    document.getElementById("newTagInput").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        addTag();
+      }
+    });
   </script>
 </body>
 </html>`;
