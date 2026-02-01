@@ -42,12 +42,6 @@ function validateTagName(name) {
   return trimmed;
 }
 
-function sanitizeForHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -75,9 +69,11 @@ export default {
         const correctPassword = env.AUTH_PASSWORD || 'memos123';
         
         if (body.password === correctPassword) {
+          // Generate secure random token using crypto API
+          const token = crypto.randomUUID();
           return createResponse({ 
             success: true, 
-            token: btoa(body.password + Date.now()) 
+            token: token
           }, 200, corsHeaders);
         } else {
           return createResponse({ 
@@ -123,8 +119,10 @@ export default {
         }
         
         if (search) {
+          // Sanitize search input for LIKE queries to prevent SQL injection via special characters
+          const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
           query += ` AND m.content LIKE ?`;
-          params.push(`%${search}%`);
+          params.push(`%${sanitizedSearch}%`);
           paramIndex += 1;
         }
         
@@ -157,8 +155,10 @@ export default {
         }
         
         if (search) {
+          // Sanitize search input for LIKE queries to prevent SQL injection via special characters
+          const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
           countQuery += ` AND m.content LIKE ?`;
-          countParams.push(`%${search}%`);
+          countParams.push(`%${sanitizedSearch}%`);
         }
         
         if (tag) {
@@ -171,27 +171,34 @@ export default {
         
         // Get all tags for memos in one query using GROUP_CONCAT
         if (results.length > 0) {
-          const memoIds = results.map(m => m.id);
-          const placeholders = memoIds.map(() => '?').join(',');
-          const { results: tagResults } = await env.DB.prepare(
-            `SELECT mt.memo_id, t.id, t.name 
-             FROM memo_tags mt 
-             JOIN tags t ON mt.tag_id = t.id 
-             WHERE mt.memo_id IN (${placeholders})`
-          ).bind(...memoIds).all();
-          
-          // Group tags by memo_id
-          const tagsByMemo = {};
-          for (const tag of tagResults) {
-            if (!tagsByMemo[tag.memo_id]) {
-              tagsByMemo[tag.memo_id] = [];
+          const memoIds = results.map(m => m.id).filter(id => id != null);
+          if (memoIds.length === 0) {
+            // Skip tag query if no valid IDs
+            for (const memo of results) {
+              memo.tags = [];
             }
-            tagsByMemo[tag.memo_id].push({ id: tag.id, name: tag.name });
-          }
-          
-          // Attach tags to memos
-          for (const memo of results) {
-            memo.tags = tagsByMemo[memo.id] || [];
+          } else {
+            const placeholders = memoIds.map(() => '?').join(',');
+            const { results: tagResults } = await env.DB.prepare(
+              `SELECT mt.memo_id, t.id, t.name 
+               FROM memo_tags mt 
+               JOIN tags t ON mt.tag_id = t.id 
+               WHERE mt.memo_id IN (${placeholders})`
+            ).bind(...memoIds).all();
+            
+            // Group tags by memo_id
+            const tagsByMemo = {};
+            for (const tag of tagResults) {
+              if (!tagsByMemo[tag.memo_id]) {
+                tagsByMemo[tag.memo_id] = [];
+              }
+              tagsByMemo[tag.memo_id].push({ id: tag.id, name: tag.name });
+            }
+            
+            // Attach tags to memos
+            for (const memo of results) {
+              memo.tags = tagsByMemo[memo.id] || [];
+            }
           }
         }
         
@@ -227,11 +234,11 @@ export default {
         const content = validateContent(body.content);
         const now = new Date().toISOString();
         
-        const { success } = await env.DB.prepare(
+        const { success, changes } = await env.DB.prepare(
           'INSERT INTO memos (content, created_at, updated_at) VALUES (?, ?, ?)'
         ).bind(content, now, now).run();
         
-        if (success) {
+        if (success && changes > 0) {
           const { results: idResult } = await env.DB.prepare(
             'SELECT id FROM memos ORDER BY created_at DESC LIMIT 1'
           ).all();
@@ -283,7 +290,11 @@ export default {
     // PUT /api/memos/:id - Update memo
     if (url.pathname.startsWith('/api/memos/') && request.method === 'PUT') {
       try {
-        const id = url.pathname.split('/').pop();
+        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
+        if (!match) {
+          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
+        }
+        const id = match[1];
         validateId(id);
 
         let body;
@@ -301,11 +312,12 @@ export default {
         const content = validateContent(body.content);
         const now = new Date().toISOString();
         
-        const { success } = await env.DB.prepare(
+        const { success, changes } = await env.DB.prepare(
           'UPDATE memos SET content = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         ).bind(content, now, id).run();
         
-        if (success) {
+        if (success && changes > 0) {
+          // Check if any rows were actually updated
           // Update tags if provided
           if (body.tags && Array.isArray(body.tags)) {
             // Remove existing tags
@@ -358,18 +370,22 @@ export default {
     // DELETE /api/memos/:id - Soft delete memo
     if (url.pathname.startsWith('/api/memos/') && request.method === 'DELETE') {
       try {
-        const id = url.pathname.split('/').pop();
+        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
+        if (!match) {
+          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
+        }
+        const id = match[1];
         validateId(id);
         
         const now = new Date().toISOString();
-        const { success } = await env.DB.prepare(
+        const { success, changes } = await env.DB.prepare(
           'UPDATE memos SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
         ).bind(now, id).run();
         
-        if (success) {
+        if (success && changes > 0) {
           return createResponse({ success: true, message: 'Memo deleted' }, 200, corsHeaders);
         } else {
-          return createResponse({ error: 'Memo not found' }, 404, corsHeaders);
+          return createResponse({ error: 'Memo not found or already deleted' }, 404, corsHeaders);
         }
       } catch (error) {
         return createResponse({ error: error.message }, 400, corsHeaders);
@@ -396,12 +412,16 @@ export default {
     // DELETE /api/tags/:id - Delete tag
     if (url.pathname.startsWith('/api/tags/') && request.method === 'DELETE') {
       try {
-        const id = url.pathname.split('/').pop();
+        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
+        if (!match) {
+          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
+        }
+        const id = match[1];
         validateId(id);
         
-        const { success } = await env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
+        const { success, changes } = await env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
         
-        if (success) {
+        if (success && changes > 0) {
           return createResponse({ success: true, message: 'Tag deleted' }, 200, corsHeaders);
         } else {
           return createResponse({ error: 'Tag not found' }, 404, corsHeaders);
@@ -428,11 +448,11 @@ export default {
         const name = validateTagName(body.name);
         const now = new Date().toISOString();
         
-        const { success } = await env.DB.prepare(
+        const { success, changes } = await env.DB.prepare(
           'INSERT INTO tags (name, created_at) VALUES (?, ?)'
         ).bind(name, now).run();
         
-        if (success) {
+        if (success && changes > 0) {
           const { results } = await env.DB.prepare(
             'SELECT * FROM tags ORDER BY created_at DESC LIMIT 1'
           ).all();
