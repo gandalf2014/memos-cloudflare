@@ -392,6 +392,62 @@ export default {
       }
     }
 
+    // GET /api/memos/deleted - List deleted memos (trash)
+    if (url.pathname === '/api/memos/deleted' && request.method === 'GET') {
+      try {
+        const page = parseInt(url.searchParams.get('page') || '1', 10);
+        const limit = parseInt(url.searchParams.get('limit') || '20', 10);
+        const offset = (page - 1) * limit;
+        
+        const { results } = await env.DB.prepare(
+          `SELECT id, content, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt
+           FROM memos 
+           WHERE deleted_at IS NOT NULL 
+           ORDER BY deleted_at DESC 
+           LIMIT ? OFFSET ?`
+        ).bind(limit, offset).all();
+        
+        const { results: countResults } = await env.DB.prepare(
+          `SELECT COUNT(*) as total FROM memos WHERE deleted_at IS NOT NULL`
+        ).all();
+        
+        const total = countResults[0]?.total || 0;
+        
+        return createResponse({
+          memos: results,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+          }
+        }, 200, corsHeaders);
+      } catch (error) {
+        return createResponse({ error: error.message }, 500, corsHeaders);
+      }
+    }
+
+    // PUT /api/memos/:id/restore - Restore deleted memo
+    if (url.pathname.match(/\/api\/memos\/\d+\/restore$/) && request.method === 'PUT') {
+      try {
+        const match = url.pathname.match(/\/api\/memos\/(\d+)\/restore$/);
+        const id = match[1];
+        validateId(id);
+        
+        const { success, changes } = await env.DB.prepare(
+          'UPDATE memos SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
+        ).bind(new Date().toISOString(), id).run();
+        
+        if (success && changes > 0) {
+          return createResponse({ success: true, message: 'Memo restored' }, 200, corsHeaders);
+        } else {
+          return createResponse({ error: 'Memo not found or not deleted' }, 404, corsHeaders);
+        }
+      } catch (error) {
+        return createResponse({ error: error.message }, 400, corsHeaders);
+      }
+    }
+
     // GET /api/tags - List all tags
     if (url.pathname === '/api/tags' && request.method === 'GET') {
       try {
@@ -487,6 +543,7 @@ function getHtml() {
   
   <!-- Phosphor Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -818,6 +875,113 @@ function getHtml() {
       opacity: 1;
     }
     
+        /* Markdown content styles */
+    .memo-content {
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--text-primary);
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    
+    .memo-content h1,
+    .memo-content h2,
+    .memo-content h3,
+    .memo-content h4,
+    .memo-content h5,
+    .memo-content h6 {
+      margin-top: 16px;
+      margin-bottom: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .memo-content h1 { font-size: 1.5em; }
+    .memo-content h2 { font-size: 1.3em; }
+    .memo-content h3 { font-size: 1.1em; }
+    
+    .memo-content p {
+      margin-bottom: 12px;
+    }
+    
+    .memo-content ul,
+    .memo-content ol {
+      margin-bottom: 12px;
+      padding-left: 24px;
+    }
+    
+    .memo-content li {
+      margin-bottom: 4px;
+    }
+    
+    .memo-content code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.9em;
+    }
+    
+    .memo-content pre {
+      background: var(--bg-tertiary);
+      padding: 16px;
+      border-radius: var(--radius-md);
+      overflow-x: auto;
+      margin-bottom: 12px;
+    }
+    
+    .memo-content pre code {
+      background: none;
+      padding: 0;
+    }
+    
+    .memo-content blockquote {
+      border-left: 4px solid var(--accent-blue);
+      padding-left: 16px;
+      margin: 12px 0;
+      color: var(--text-secondary);
+    }
+    
+    .memo-content a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+    
+    .memo-content a:hover {
+      text-decoration: underline;
+    }
+    
+    .memo-content img {
+      max-width: 100%;
+      border-radius: var(--radius-sm);
+      margin: 8px 0;
+    }
+    
+    .memo-content hr {
+      border: none;
+      border-top: 1px solid var(--glass-border);
+      margin: 16px 0;
+    }
+    
+    .memo-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 12px;
+    }
+    
+    .memo-content th,
+    .memo-content td {
+      padding: 8px 12px;
+      border: 1px solid var(--glass-border);
+      text-align: left;
+    }
+    
+    .memo-content th {
+      background: var(--bg-tertiary);
+      font-weight: 600;
+    }
+
+    /* Original memo-content style */
     .memo-content { 
       font-size: 15px; 
       line-height: 1.7; 
@@ -1872,9 +2036,24 @@ function getHtml() {
       </div>
       
       <div id="filterInfo"></div>
+      
+      <!-- Trash/Recycle Bin -->
+      <div class="trash-area" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--glass-border);">
+        <button class="trash-btn" onclick="showTrash()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 16px; background: transparent; border: 1px solid var(--glass-border); border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer; transition: all 0.2s; font-size: 14px;">
+          <i class="ph ph-trash" style="font-size: 20px;"></i>
+          <span>回收站</span>
+          <span id="trashCount" style="margin-left: auto; background: var(--error); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; display: none;">0</span>
+        </button>
+      </div>
     </div>
-    <div class="main">
-      <h1><i class="ph ph-notebook"></i> Memos</h1>
+    <div class="main" id="mainContent">
+      <div id="trashView" style="display: none;">
+        <h1><i class="ph ph-trash"></i> 回收站</h1>
+        <div class="memos-list" id="trashList"></div>
+        <div id="trashPagination"></div>
+      </div>
+      <div id="normalView">
+        <h1><i class="ph ph-notebook"></i> Memos</h1>
       <div class="input-area">
         <textarea id="memoInput" placeholder="Write your thoughts..."></textarea>
         <div style="margin-top: 12px;">
@@ -1889,6 +2068,9 @@ function getHtml() {
           </button>
           <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
             <i class="ph ph-sun"></i>
+          </button>
+          <button class="btn" onclick="showShortcutsHelp()" title="快捷键" style="background: var(--bg-tertiary); margin-left: 8px;">
+            <i class="ph ph-keyboard"></i>
           </button>
         </div>
       </div>
@@ -2155,7 +2337,10 @@ function getHtml() {
           editHtml += '</div></div>';
           html += editHtml;
         } else {
-          let content = escapeHtml(memo.content);
+          let content = marked.parse(memo.content, { 
+            breaks: true,
+            sanitize: false 
+          });
           if (currentSearchKeyword) {
             const regex = new RegExp('(' + escapeHtml(currentSearchKeyword) + ')', 'gi');
             content = content.replace(regex, '<span class="highlight">$1</span>');
@@ -2600,6 +2785,219 @@ function getHtml() {
         addTag();
       }
     });
+
+    // Trash/Recycle Bin functions
+    let trashPage = 1;
+    
+    async function showTrash() {
+      document.getElementById('normalView').style.display = 'none';
+      document.getElementById('trashView').style.display = 'block';
+      document.querySelector('.input-area').style.display = 'none';
+      trashPage = 1;
+      await loadTrash();
+    }
+    
+    async function hideTrash() {
+      document.getElementById('normalView').style.display = 'block';
+      document.getElementById('trashView').style.display = 'none';
+      document.querySelector('.input-area').style.display = 'block';
+    }
+    
+    async function loadTrash() {
+      try {
+        const res = await fetch('/api/memos/deleted?page=' + trashPage);
+        const data = await res.json();
+        
+        // Update trash count badge
+        const trashCount = document.getElementById('trashCount');
+        if (data.pagination.total > 0) {
+          trashCount.textContent = data.pagination.total;
+          trashCount.style.display = 'inline-block';
+        } else {
+          trashCount.style.display = 'none';
+        }
+        
+        renderTrashMemos(data.memos);
+        renderTrashPagination(data.pagination);
+      } catch (error) {
+        console.error('Failed to load trash:', error);
+        document.getElementById('trashList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">加载失败</div></div>';
+      }
+    }
+    
+    function renderTrashMemos(memos) {
+      const container = document.getElementById('trashList');
+      if (memos.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🗑️</div><div class="empty-state-text">回收站是空的</div></div>';
+        return;
+      }
+      
+      let html = '';
+      memos.forEach(function(memo, index) {
+        let content = marked.parse(memo.content, { 
+          breaks: true,
+          sanitize: false 
+        });
+        
+        html += '<div class="memo" style="animation-delay: ' + (index * 0.05) + 's;">';
+        html += '<div class="memo-content">' + content + '</div>';
+        html += '<div class="memo-footer" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">';
+        html += '<div class="memo-time"><i class="ph ph-clock"></i> 删除于 ' + new Date(memo.deletedAt).toLocaleString('zh-CN') + '</div>';
+        html += '<div style="display: flex; gap: 8px;">';
+        html += '<button class="modal-btn" onclick="restoreMemo(' + memo.id + ')" style="background: var(--success); color: white; padding: 8px 16px; font-size: 13px;"><i class="ph ph-arrow-counter-clockwise"></i> 恢复</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      container.innerHTML = html;
+    }
+    
+    function renderTrashPagination(pagination) {
+      if (!pagination || pagination.totalPages <= 1) {
+        document.getElementById('trashPagination').innerHTML = '';
+        return;
+      }
+      
+      let html = '<div class="pagination-container">';
+      html += '<div class="pagination">';
+      html += '<button onclick="goToTrashPage(' + (pagination.page - 1) + ')" ' + (pagination.page === 1 ? 'disabled' : '') + '><i class="ph ph-caret-left"></i></button>';
+      
+      for (let i = 1; i <= pagination.totalPages; i++) {
+        if (i === 1 || i === pagination.totalPages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
+          html += '<button onclick="goToTrashPage(' + i + ')" ' + (i === pagination.page ? 'class="active"' : '') + '>' + i + '</button>';
+        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
+          html += '<span style="color: var(--text-secondary); padding: 8px;">...</span>';
+        }
+      }
+      
+      html += '<button onclick="goToTrashPage(' + (pagination.page + 1) + ')" ' + (pagination.page === pagination.totalPages ? 'disabled' : '') + '><i class="ph ph-caret-right"></i></button>';
+      html += '</div>';
+      html += '<div class="pagination-info">第 ' + pagination.page + ' 页，共 ' + pagination.totalPages + ' 页 (' + pagination.total + ' 条)</div>';
+      html += '</div>';
+      
+      document.getElementById('trashPagination').innerHTML = html;
+    }
+    
+    function goToTrashPage(page) {
+      if (page < 1) return;
+      trashPage = page;
+      loadTrash();
+    }
+    
+    async function restoreMemo(id) {
+      const confirmed = await showModal('确定要恢复这条 memo 吗？', '恢复确认', false);
+      if (!confirmed) return;
+      
+      try {
+        const res = await fetch('/api/memos/' + id + '/restore', { method: 'PUT' });
+        const data = await res.json();
+        
+        if (data.success) {
+          loadTrash();
+          loadMemos();
+        } else {
+          await showModal(data.error || '恢复失败', '错误', true);
+        }
+      } catch (error) {
+        console.error('Restore failed:', error);
+        await showModal('恢复失败，请重试', '错误', true);
+      }
+    }
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      // Ctrl/Cmd + Enter: Save memo (when in input)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (document.activeElement === document.getElementById('memoInput')) {
+          e.preventDefault();
+          if (searchMode) {
+            searchMemos();
+          } else {
+            addMemo();
+          }
+        } else if (editingId && document.activeElement.tagName === 'TEXTAREA') {
+          e.preventDefault();
+          saveEdit(editingId);
+        }
+      }
+      
+      // Ctrl/Cmd + N: Focus input and clear
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        const input = document.getElementById('memoInput');
+        input.value = '';
+        input.focus();
+        hideTrash();
+      }
+      
+      // Ctrl/Cmd + K: Focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (!searchMode) {
+          toggleSearch();
+        }
+        document.getElementById('memoInput').focus();
+      }
+      
+      // Ctrl/Cmd + T: Toggle trash
+      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+        e.preventDefault();
+        const trashView = document.getElementById('trashView');
+        if (trashView.style.display === 'none' || trashView.style.display === '') {
+          showTrash();
+        } else {
+          hideTrash();
+        }
+      }
+      
+      // ESC: Cancel edit or clear search
+      if (e.key === 'Escape') {
+        if (editingId) {
+          cancelEdit();
+        } else if (searchMode) {
+          clearSearch();
+        } else if (document.getElementById('trashView').style.display === 'block') {
+          hideTrash();
+        }
+      }
+    });
+    
+    // Show keyboard shortcuts help
+    // Show keyboard shortcuts help
+    function showShortcutsHelp() {
+      const shortcuts = [
+        { key: 'Ctrl/Cmd + Enter', desc: '保存/发布 Memo' },
+        { key: 'Ctrl/Cmd + N', desc: '新建 Memo' },
+        { key: 'Ctrl/Cmd + K', desc: '搜索' },
+        { key: 'Ctrl/Cmd + T', desc: '切换回收站' },
+        { key: 'ESC', desc: '取消/退出' }
+      ];
+      
+      let html = '<div style="text-align:left;padding:16px;">';
+      html += '<h3 style="margin-bottom:20px;color:var(--text-primary);">⌨️ 键盘快捷键</h3>';
+      html += '<div style="display:grid;gap:12px;">';
+      
+      shortcuts.forEach(function(item, index) {
+        const borderStyle = index < shortcuts.length - 1 ? 'border-bottom:1px solid var(--glass-border);' : '';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;' + borderStyle + '">';
+        html += '<span>' + item.key + '</span>';
+        html += '<span style="color:var(--text-secondary);">' + item.desc + '</span>';
+        html += '</div>';
+      });
+      
+      html += '</div></div>';
+      
+      // Create modal
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay active';
+      modal.style.cssText = 'z-index:10001;';
+      modal.innerHTML = '<div class="modal-container" style="max-width:400px;">' + html + '<div class="modal-footer" style="margin-top:20px;"><button class="modal-btn" style="background:var(--accent-gradient);color:white;width:100%;" onclick="this.closest(\'.modal-overlay\').remove()">知道了</button></div></div>';
+      
+      modal.onclick = function(e) {
+        if (e.target === modal) modal.remove();
+      };
+      document.body.appendChild(modal);
+    }
   </script>
   
   <!-- Mobile Floating Action Button -->
