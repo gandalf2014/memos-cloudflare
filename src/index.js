@@ -2,7 +2,7 @@
 function createResponse(data, status = 200, corsHeaders) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' }
   });
 }
 
@@ -86,8 +86,9 @@ export default {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             return createResponse({ error: 'Invalid date format. Use YYYY-MM-DD' }, 400, corsHeaders);
           }
-          const startDate = date + 'T00:00:00.000Z';
-          const endDate = date + 'T23:59:59.999Z';
+          // 使用与数据库存储格式匹配的本地时间格式
+          const startDate = date + ' 00:00:00';
+          const endDate = date + ' 23:59:59';
           query += ` AND m.created_at >= ? AND m.created_at <= ?`;
           params.push(startDate, endDate);
           paramIndex += 2;
@@ -119,41 +120,55 @@ export default {
           WHERE m.deleted_at IS NULL
         `;
         const countParams = [];
-        let countParamIndex = 0;
         
         if (date) {
-          const startDate = date + 'T00:00:00.000Z';
-          const endDate = date + 'T23:59:59.999Z';
+          const startDate = date + ' 00:00:00';
+          const endDate = date + ' 23:59:59';
           countQuery += ` AND m.created_at >= ? AND m.created_at <= ?`;
           countParams.push(startDate, endDate);
-          countParamIndex += 2;
         }
         
         if (search) {
           countQuery += ` AND m.content LIKE ?`;
           countParams.push(`%${search}%`);
-          countParamIndex += 1;
         }
         
         if (tag) {
           countQuery += ` AND t.name = ?`;
           countParams.push(tag);
-          countParamIndex += 1;
         }
         
         const { results: countResults } = await env.DB.prepare(countQuery).bind(...countParams).all();
         const total = countResults[0]?.total || 0;
         
-        // Get tags for each memo
-        const memosWithTags = await Promise.all(results.map(async (memo) => {
+        // Get all tags for memos in one query using GROUP_CONCAT
+        if (results.length > 0) {
+          const memoIds = results.map(m => m.id);
+          const placeholders = memoIds.map(() => '?').join(',');
           const { results: tagResults } = await env.DB.prepare(
-            `SELECT t.id, t.name FROM tags t JOIN memo_tags mt ON t.id = mt.tag_id WHERE mt.memo_id = ?`
-          ).bind(memo.id).all();
-          return { ...memo, tags: tagResults };
-        }));
+            `SELECT mt.memo_id, t.id, t.name 
+             FROM memo_tags mt 
+             JOIN tags t ON mt.tag_id = t.id 
+             WHERE mt.memo_id IN (${placeholders})`
+          ).bind(...memoIds).all();
+          
+          // Group tags by memo_id
+          const tagsByMemo = {};
+          for (const tag of tagResults) {
+            if (!tagsByMemo[tag.memo_id]) {
+              tagsByMemo[tag.memo_id] = [];
+            }
+            tagsByMemo[tag.memo_id].push({ id: tag.id, name: tag.name });
+          }
+          
+          // Attach tags to memos
+          for (const memo of results) {
+            memo.tags = tagsByMemo[memo.id] || [];
+          }
+        }
         
         return createResponse({
-          memos: memosWithTags,
+          memos: results,
           pagination: {
             page,
             limit,
@@ -171,7 +186,8 @@ export default {
       try {
         let body;
         try {
-          body = await request.json();
+          const text = await request.text();
+          body = JSON.parse(text);
         } catch {
           return createResponse({ error: 'Invalid JSON body' }, 400, corsHeaders);
         }
@@ -216,7 +232,7 @@ export default {
           }
           
           const { results } = await env.DB.prepare(
-            `SELECT m.*, GROUP_CONCAT(t.name) as tags
+            `SELECT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt, GROUP_CONCAT(t.name) as tags
              FROM memos m
              LEFT JOIN memo_tags mt ON m.id = mt.memo_id
              LEFT JOIN tags t ON mt.tag_id = t.id
@@ -244,7 +260,8 @@ export default {
 
         let body;
         try {
-          body = await request.json();
+          const text = await request.text();
+          body = JSON.parse(text);
         } catch {
           return createResponse({ error: 'Invalid JSON body' }, 400, corsHeaders);
         }
@@ -286,7 +303,7 @@ export default {
           }
           
           const { results } = await env.DB.prepare(
-            `SELECT m.*, GROUP_CONCAT(t.name) as tags
+            `SELECT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt, GROUP_CONCAT(t.name) as tags
              FROM memos m
              LEFT JOIN memo_tags mt ON m.id = mt.memo_id
              LEFT JOIN tags t ON mt.tag_id = t.id
@@ -417,6 +434,7 @@ function getHtml() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <title>Memos</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -438,11 +456,13 @@ function getHtml() {
     @media (max-width: 600px) { .memos-list { column-count: 1; } }
     .memo { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s; break-inside: avoid; margin-bottom: 15px; position: relative; }
     .memo:hover { transform: translateY(-2px); }
-    .memo-content { font-size: 16px; line-height: 1.6; color: #333; white-space: pre-wrap; margin-top: 20px; }
+    .memo-content { font-size: 16px; line-height: 1.6; color: #333; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word; max-width: 100%; margin-top: 20px; }
     .memo-time { font-size: 12px; color: #999; margin-top: 10px; }
     .memo-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 4px; }
-    .icon-btn { background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 14px; transition: background 0.2s; }
+    .icon-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 4px; transition: background 0.2s; display: flex; align-items: center; justify-content: center; }
     .icon-btn:hover { background: #f0f0f0; }
+    .icon-btn svg { display: block; }
+    .memo-actions-edit { top: auto; bottom: 10px; }
     .icon-edit { color: #28a745; }
     .icon-delete { color: #dc3545; }
     .icon-save { color: #007bff; }
@@ -500,19 +520,33 @@ function getHtml() {
     .dark-theme .layout, .dark-theme .sidebar, .dark-theme .main, .dark-theme .input-area, .dark-theme .memo, .dark-theme .calendar-day, .dark-theme .filter-info, .dark-theme .sidebar-title, .dark-theme .btn, .dark-theme .btn-search, .dark-theme .btn-theme { background: #1e1e1e; color: #f5f5f5; }
     .dark-theme textarea { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
     .dark-theme .btn, .dark-theme .btn-search, .dark-theme .btn-theme { background: #3a3a3a; color: #f5f5f5; }
-    .dark-theme .memo { background: #000000; color: #ffffff; border: 1px solid #777777; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
-    .dark-theme .memo-content { color: #ffffff; }
-    .dark-theme .memo-time { color: #ffffff; }
-    .dark-theme .calendar-day { background: #2a2a2a; color: #e0e0e0; }
-    .dark-theme .filter-info { background: #2a2a2a; color: #e0e0e0; }
-    .dark-theme .tag { background: #3a3a3a; color: #e0e0e0; }
+    .dark-theme .memo { background: #1e1e1e; color: #f5f5f5; border: 1px solid #444; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .dark-theme .memo-content { color: #f5f5f5; }
+    .dark-theme .memo-time { color: #aaa; }
+    .dark-theme .calendar-day { background: #2a2a2a; color: #f5f5f5; }
+    .dark-theme .calendar-day:hover { background: #3a3a3a; }
+    .dark-theme .calendar-day.other-month { color: #666; }
+    .dark-theme .calendar-day-header { color: #aaa; }
+    .dark-theme .filter-info { background: #2a2a2a; color: #f5f5f5; }
+    .dark-theme .tag { background: #3a3a3a; color: #f5f5f5; }
     .dark-theme .tag:hover { background: #4a4a4a; }
+    .dark-theme .tags-title { color: #f5f5f5; }
     .dark-theme .add-tag-form input { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
     .dark-theme .pagination button { background: #2e2e2e; color: #f5f5f5; border-color: #555; }
     .dark-theme .pagination button:hover:not(:disabled) { background: #3a3a3a; }
+    .dark-theme .pagination-info { color: #aaa; }
+    .dark-theme .icon-btn { color: #f5f5f5; }
+    .dark-theme h1 { color: #f5f5f5; }
+    .dark-theme .calendar-month { color: #f5f5f5; }
+    .dark-theme .icon-edit { color: #28a745; }
+    .dark-theme .icon-delete { color: #dc3545; }
+    .dark-theme .icon-save { color: #007bff; }
+    .dark-theme .icon-cancel { color: #6c757d; }
+    .dark-theme .icon-btn:hover { background: #3a3a3a; }
+    .dark-theme .memo-actions-edit { top: auto; bottom: 10px; }
   </style>
 </head>
-<body>
+<body class="dark-theme">
   <div class="layout">
     <div class="sidebar">
       <div class="sidebar-title">📅 日历</div>
@@ -545,7 +579,7 @@ function getHtml() {
         </div>
         <button class="btn" id="addBtn" onclick="addMemo()">添加 Memo</button>
         <button class="btn btn-search" id="searchBtn" onclick="toggleSearch()">🔍</button>
-        <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">🌙</button>
+        <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">☀️</button>
       </div>
       <div class="memos-list" id="memosList"></div>
       <div id="pagination"></div>
@@ -672,14 +706,23 @@ function getHtml() {
       }
       
       fetch(url)
-        .then(function(res) { return res.json(); })
+        .then(function(res) { 
+          if (!res.ok) {
+            throw new Error('HTTP error! status: ' + res.status);
+          }
+          return res.json(); 
+        })
         .then(function(data) {
-          allMemos = data.memos;
+          allMemos = data.memos || [];
           renderCalendar();
           if (!isSearching && !selectedDate && !selectedTag) {
             renderMemos(data.memos);
           }
           renderPagination(data.pagination);
+        })
+        .catch(function(error) {
+          console.error('加载失败:', error);
+          document.getElementById("memosList").innerHTML = '<p style="text-align:center;color:#dc3545;">加载失败，请刷新重试</p>';
         });
     }
 
@@ -691,22 +734,49 @@ function getHtml() {
       }
       let html = "";
       memos.forEach(function(memo) {
-        const tagsHtml = memo.tags && memo.tags.length > 0 
-          ? '<div class="memo-tags" style="margin-top: 10px;">' + memo.tags.map(function(t) {
-              return '<span class="tag" onclick="filterByTag(\'' + escapeHtml(t) + '\')" style="margin-right: 4px;">' + escapeHtml(t) + '</span>';
-            }).join('') + '</div>'
-          : '';
+        const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags" style="margin-top: 10px;">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tagName) + String.fromCharCode(39) + ')" style="margin-right: 4px;">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
         
         if (editingId === memo.id) {
-          const currentTags = memo.tags ? memo.tags.join(', ') : '';
-          html = html + '<div class="memo" id="memo-' + memo.id + '"><textarea id="edit-' + memo.id + '" style="width:100%;height:80px;border:2px solid #007bff;border-radius:8px;padding:10px;font-size:16px;resize:vertical;">' + escapeHtml(memo.content) + '</textarea><input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="标签（用逗号分隔）..." style="width:100%;margin-top:8px;padding:8px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;"><div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div>' + tagsHtml + '<div class="memo-actions"><button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="保存">✓</button><button class="icon-btn icon-cancel" onclick="cancelEdit()" title="取消">✕</button></div></div>';
+          const currentTags = memo.tags ? memo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }).join(', ') : '';
+          var editHtml = '<div class="memo" id="memo-' + memo.id + '">';
+          editHtml += '<textarea id="edit-' + memo.id + '" style="width:100%;height:300px;border:2px solid #007bff;border-radius:8px;padding:10px;font-size:16px;resize:vertical;background:#2e2e2e;color:#f5f5f5;">' + escapeHtml(memo.content) + '</textarea>';
+          editHtml += '<input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="标签（用逗号分隔）..." style="width:100%;margin-top:8px;padding:8px;border:2px solid #555;border-radius:8px;font-size:14px;background:#2e2e2e;color:#f5f5f5;">';
+          editHtml += '<div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div>';
+          editHtml += '<div class="memo-actions memo-actions-edit">';
+          editHtml += '<button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="保存">';
+          editHtml += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+          editHtml += '<path d="M20 6L9 17l-5-5" />';
+          editHtml += '</svg></button>';
+          editHtml += '<button class="icon-btn icon-cancel" onclick="cancelEdit()" title="取消">';
+          editHtml += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+          editHtml += '<circle cx="12" cy="12" r="10" opacity="0.2" fill="currentColor" />';
+          editHtml += '<path d="M15 9l-6 6M9 9l6 6" />';
+          editHtml += '</svg></button>';
+          editHtml += '</div></div>';
+          html += editHtml;
         } else {
-          let content = memo.content;
+          let content = escapeHtml(memo.content);
           if (currentSearchKeyword) {
-            const regex = new RegExp('(' + currentSearchKeyword + ')', 'gi');
+            const regex = new RegExp('(' + escapeHtml(currentSearchKeyword) + ')', 'gi');
             content = content.replace(regex, '<span class="highlight">$1</span>');
           }
-          html = html + '<div class="memo" id="memo-' + memo.id + '"><div class="memo-content">' + content + '</div>' + tagsHtml + '<div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div><div class="memo-actions"><button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">✎</button><button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="删除">✕</button></div></div>';
+          var viewHtml = '<div class="memo" id="memo-' + memo.id + '">';
+          viewHtml += '<div class="memo-content">' + content + '</div>';
+          viewHtml += tagsHtml;
+          viewHtml += '<div class="memo-time">' + new Date(memo.createdAt).toLocaleString("zh-CN") + '</div>';
+          viewHtml += '<div class="memo-actions">';
+          viewHtml += '<button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">';
+          viewHtml += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+          viewHtml += '<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />';
+          viewHtml += '</svg></button>';
+          viewHtml += '<button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="删除">';
+          viewHtml += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">';
+          viewHtml += '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />';
+          viewHtml += '<line x1="10" y1="11" x2="10" y2="17" />';
+          viewHtml += '<line x1="14" y1="11" x2="14" y2="17" />';
+          viewHtml += '</svg></button>';
+          viewHtml += '</div></div>';
+          html += viewHtml;
         }
       });
       container.innerHTML = html;
@@ -761,11 +831,17 @@ function getHtml() {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ content: content, tags: tags })
-      }).then(function() {
+      }).then(function(res) {
+        if (!res.ok) {
+          throw new Error('HTTP error! status: ' + res.status);
+        }
         input.value = "";
         tagsInput.value = "";
         loadMemos();
         loadTags();
+      }).catch(function(error) {
+        console.error('添加失败:', error);
+        alert('添加失败，请重试');
       });
     }
 
@@ -777,6 +853,7 @@ function getHtml() {
       });
     }
 
+    renderCalendar();
     loadMemos();
     loadTags();
     refreshInterval = setInterval(loadMemos, 30000);
@@ -912,19 +989,28 @@ function getHtml() {
     // Tags functions
     function loadTags() {
       fetch("/api/tags")
-        .then(function(res) { return res.json(); })
+        .then(function(res) { 
+          if (!res.ok) {
+            throw new Error('HTTP error! status: ' + res.status);
+          }
+          return res.json(); 
+        })
         .then(function(data) {
           const container = document.getElementById("tagsList");
-          if (data.tags.length === 0) {
+          if (!data.tags || data.tags.length === 0) {
             container.innerHTML = '<span style="color:#999;font-size:12px;">暂无标签</span>';
             return;
           }
           let html = "";
           data.tags.forEach(function(tag) {
             const isActive = selectedTag === tag.name;
-            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + escapeHtml(tag.name) + '\')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
+            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tag.name) + String.fromCharCode(39) + ')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
           });
           container.innerHTML = html;
+        })
+        .catch(function(error) {
+          console.error('加载标签失败:', error);
+          document.getElementById("tagsList").innerHTML = '<span style="color:#dc3545;font-size:12px;">加载失败</span>';
         });
     }
 
