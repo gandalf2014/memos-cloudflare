@@ -69,8 +69,10 @@ export default {
         const correctPassword = env.AUTH_PASSWORD || 'memos123';
         
         if (body.password === correctPassword) {
-          // Generate secure random token using crypto API
-          const token = crypto.randomUUID();
+          // Generate secure random token
+          const array = new Uint8Array(16);
+          crypto.getRandomValues(array);
+          const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
           return createResponse({ 
             success: true, 
             token: token
@@ -2129,6 +2131,11 @@ function getHtml() {
           body: JSON.stringify({ password: password })
         });
         
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || '请求失败: ' + res.status);
+        }
+        
         const data = await res.json();
         
         if (data.success) {
@@ -2143,7 +2150,8 @@ function getHtml() {
           input.focus();
         }
       } catch (err) {
-        error.textContent = '验证失败，请重试';
+        console.error('Login error:', err);
+        error.textContent = '网络错误，请检查网络连接或刷新页面重试';
         error.classList.add('show');
       } finally {
         btn.disabled = false;
