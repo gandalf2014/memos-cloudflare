@@ -3011,7 +3011,7 @@ function getHtml() {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay active';
       modal.style.cssText = 'z-index:10001;';
-      modal.innerHTML = '<div class="modal-container" style="max-width:400px;">' + html + '<div class="modal-footer" style="margin-top:20px;"><button class="modal-btn" style="background:var(--accent-gradient);color:white;width:100%;" onclick="this.closest(\'.modal-overlay\').remove()">知道了</button></div></div>';
+      modal.innerHTML = '<div class="modal-container" style="max-width:400px;">' + html + '<div class="modal-footer" style="margin-top:20px;"><button class="modal-btn" style="background:var(--accent-gradient);color:white;width:100%;" onclick="this.closest(&#39;.modal-overlay&#39;).remove()">知道了</button></div></div>';
       
       modal.onclick = function(e) {
         if (e.target === modal) modal.remove();
