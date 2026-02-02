@@ -2327,7 +2327,7 @@ function getHtml() {
       }
       let html = "";
       memos.forEach(function(memo, index) {
-        const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tagName) + String.fromCharCode(39) + ')">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
+        const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(\'' + escapeJsString(escapeHtml(tagName)) + '\')">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
         
         if (editingId === memo.id) {
           const currentTags = memo.tags ? memo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }).join(', ') : '';
@@ -2406,6 +2406,18 @@ function getHtml() {
       const div = document.createElement("div");
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function escapeJsString(text) {
+      return text.replace(/[\\'"\n\r]/g, function(match) {
+        return {
+          '\\': '\\\\',
+          "'": "\\'",
+          '"': '\\"',
+          '\n': '\\n',
+          '\r': '\\r'
+        }[match];
+      });
     }
 
     function addMemo() {
@@ -2723,7 +2735,7 @@ function getHtml() {
           let html = "";
           data.tags.forEach(function(tag) {
             const isActive = selectedTag === tag.name;
-            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tag.name) + String.fromCharCode(39) + ')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
+            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + escapeJsString(escapeHtml(tag.name)) + '\')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
           });
           container.innerHTML = html;
         })
