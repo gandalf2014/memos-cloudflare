@@ -4,7 +4,7 @@ main = "src/index.js"
 
 # Environment Variables
 [vars]
-AUTH_PASSWORD = "memos123"
+AUTH_PASSWORD = "gandalf"
 
 [[d1_databases]]
 binding = "DB"

@@ -7,3 +7,7 @@ dist/
 *.json
 migrate_data.py
 temp_script.js
+check_braces.js
+test_auth.mjs
+temp_check.js
+nul

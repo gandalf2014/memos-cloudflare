@@ -45,7 +45,7 @@ function validateTagName(name) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    
+
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -67,21 +67,18 @@ export default {
         }
 
         const correctPassword = env.AUTH_PASSWORD || 'memos123';
-        
+
         if (body.password === correctPassword) {
-          // Generate secure random token
-          const array = new Uint8Array(16);
-          crypto.getRandomValues(array);
-          const token = Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-          return createResponse({ 
-            success: true, 
+          // 浣跨敤绠€鍗曠殑闅忔満瀛楃涓蹭綔涓?token
+          const token = Array.from({ length: 32 }, () =>
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
+          ).join('');
+          return createResponse({
+            success: true,
             token: token
           }, 200, corsHeaders);
         } else {
-          return createResponse({ 
-            success: false, 
-            error: '密码错误' 
-          }, 401, corsHeaders);
+          return createResponse({ success: false, error: 'Incorrect password' }, 401, corsHeaders);
         }
       } catch (error) {
         return createResponse({ error: error.message }, 500, corsHeaders);
@@ -97,7 +94,7 @@ export default {
         const page = parseInt(url.searchParams.get('page') || '1', 10);
         const limit = parseInt(url.searchParams.get('limit') || '20', 10);
         const offset = (page - 1) * limit;
-        
+
         let query = `
           SELECT DISTINCT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt
           FROM memos m
@@ -107,38 +104,34 @@ export default {
         `;
         const params = [];
         let paramIndex = 0;
-        
+
         if (date) {
           if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             return createResponse({ error: 'Invalid date format. Use YYYY-MM-DD' }, 400, corsHeaders);
           }
-          // 使用与数据库存储格式匹配的本地时间格式
-          const startDate = date + ' 00:00:00';
-          const endDate = date + ' 23:59:59';
-          query += ` AND m.created_at >= ? AND m.created_at <= ?`;
-          params.push(startDate, endDate);
-          paramIndex += 2;
-        }
-        
-        if (search) {
-          // Sanitize search input for LIKE queries to prevent SQL injection via special characters
-          const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
-          query += ` AND m.content LIKE ?`;
-          params.push(`%${sanitizedSearch}%`);
+          // 浣跨敤 SQLite date() 鍑芥暟鎻愬彇鏃ユ湡閮ㄥ垎杩涜姣旇緝
+          query += ` AND date(m.created_at) = ?`;
+          params.push(date);
           paramIndex += 1;
         }
-        
+
+        if (search) {
+          query += ` AND m.content LIKE ?`;
+          params.push(`%${search}%`);
+          paramIndex += 1;
+        }
+
         if (tag) {
           query += ` AND t.name = ?`;
           params.push(tag);
           paramIndex += 1;
         }
-        
+
         query += ` ORDER BY m.created_at DESC LIMIT ? OFFSET ?`;
         params.push(limit, offset);
-        
+
         const { results } = await env.DB.prepare(query).bind(...params).all();
-        
+
         // Get total count
         let countQuery = `
           SELECT COUNT(DISTINCT m.id) as total
@@ -148,62 +141,51 @@ export default {
           WHERE m.deleted_at IS NULL
         `;
         const countParams = [];
-        
+
         if (date) {
-          const startDate = date + ' 00:00:00';
-          const endDate = date + ' 23:59:59';
-          countQuery += ` AND m.created_at >= ? AND m.created_at <= ?`;
-          countParams.push(startDate, endDate);
+          countQuery += ` AND date(m.created_at) = ?`;
+          countParams.push(date);
         }
-        
+
         if (search) {
-          // Sanitize search input for LIKE queries to prevent SQL injection via special characters
-          const sanitizedSearch = search.replace(/[%_\\]/g, '\\$&');
           countQuery += ` AND m.content LIKE ?`;
-          countParams.push(`%${sanitizedSearch}%`);
+          countParams.push(`%${search}%`);
         }
-        
+
         if (tag) {
           countQuery += ` AND t.name = ?`;
           countParams.push(tag);
         }
-        
+
         const { results: countResults } = await env.DB.prepare(countQuery).bind(...countParams).all();
         const total = countResults[0]?.total || 0;
-        
+
         // Get all tags for memos in one query using GROUP_CONCAT
         if (results.length > 0) {
-          const memoIds = results.map(m => m.id).filter(id => id != null);
-          if (memoIds.length === 0) {
-            // Skip tag query if no valid IDs
-            for (const memo of results) {
-              memo.tags = [];
+          const memoIds = results.map(m => m.id);
+          const placeholders = memoIds.map(() => '?').join(',');
+          const { results: tagResults } = await env.DB.prepare(
+            `SELECT mt.memo_id, t.id, t.name 
+             FROM memo_tags mt 
+             JOIN tags t ON mt.tag_id = t.id 
+             WHERE mt.memo_id IN (${placeholders})`
+          ).bind(...memoIds).all();
+
+          // Group tags by memo_id
+          const tagsByMemo = {};
+          for (const tag of tagResults) {
+            if (!tagsByMemo[tag.memo_id]) {
+              tagsByMemo[tag.memo_id] = [];
             }
-          } else {
-            const placeholders = memoIds.map(() => '?').join(',');
-            const { results: tagResults } = await env.DB.prepare(
-              `SELECT mt.memo_id, t.id, t.name 
-               FROM memo_tags mt 
-               JOIN tags t ON mt.tag_id = t.id 
-               WHERE mt.memo_id IN (${placeholders})`
-            ).bind(...memoIds).all();
-            
-            // Group tags by memo_id
-            const tagsByMemo = {};
-            for (const tag of tagResults) {
-              if (!tagsByMemo[tag.memo_id]) {
-                tagsByMemo[tag.memo_id] = [];
-              }
-              tagsByMemo[tag.memo_id].push({ id: tag.id, name: tag.name });
-            }
-            
-            // Attach tags to memos
-            for (const memo of results) {
-              memo.tags = tagsByMemo[memo.id] || [];
-            }
+            tagsByMemo[tag.memo_id].push({ id: tag.id, name: tag.name });
+          }
+
+          // Attach tags to memos
+          for (const memo of results) {
+            memo.tags = tagsByMemo[memo.id] || [];
           }
         }
-        
+
         return createResponse({
           memos: results,
           pagination: {
@@ -235,17 +217,17 @@ export default {
 
         const content = validateContent(body.content);
         const now = new Date().toISOString();
-        
-        const { success, changes } = await env.DB.prepare(
+
+        const { success } = await env.DB.prepare(
           'INSERT INTO memos (content, created_at, updated_at) VALUES (?, ?, ?)'
         ).bind(content, now, now).run();
-        
-        if (success && changes > 0) {
+
+        if (success) {
           const { results: idResult } = await env.DB.prepare(
             'SELECT id FROM memos ORDER BY created_at DESC LIMIT 1'
           ).all();
           const memoId = idResult[0].id;
-          
+
           // Handle tags
           if (body.tags && Array.isArray(body.tags)) {
             for (const tagName of body.tags) {
@@ -254,12 +236,12 @@ export default {
               await env.DB.prepare(
                 `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
               ).bind(trimmedTag, now).run();
-              
+
               // Get tag id
               const { results: tagResult } = await env.DB.prepare(
                 `SELECT id FROM tags WHERE name = ?`
               ).bind(trimmedTag).all();
-              
+
               if (tagResult.length > 0) {
                 await env.DB.prepare(
                   `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
@@ -267,7 +249,7 @@ export default {
               }
             }
           }
-          
+
           const { results } = await env.DB.prepare(
             `SELECT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt, GROUP_CONCAT(t.name) as tags
              FROM memos m
@@ -276,10 +258,10 @@ export default {
              WHERE m.id = ?
              GROUP BY m.id`
           ).bind(memoId).all();
-          
+
           const memo = results[0];
           memo.tags = memo.tags ? memo.tags.split(',') : [];
-          
+
           return createResponse({ memo }, 201, corsHeaders);
         } else {
           return createResponse({ error: 'Failed to create memo' }, 500, corsHeaders);
@@ -292,11 +274,7 @@ export default {
     // PUT /api/memos/:id - Update memo
     if (url.pathname.startsWith('/api/memos/') && request.method === 'PUT') {
       try {
-        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
-        if (!match) {
-          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
-        }
-        const id = match[1];
+        const id = url.pathname.split('/').pop();
         validateId(id);
 
         let body;
@@ -313,29 +291,28 @@ export default {
 
         const content = validateContent(body.content);
         const now = new Date().toISOString();
-        
-        const { success, changes } = await env.DB.prepare(
+
+        const { success } = await env.DB.prepare(
           'UPDATE memos SET content = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL'
         ).bind(content, now, id).run();
-        
-        if (success && changes > 0) {
-          // Check if any rows were actually updated
+
+        if (success) {
           // Update tags if provided
           if (body.tags && Array.isArray(body.tags)) {
             // Remove existing tags
             await env.DB.prepare(`DELETE FROM memo_tags WHERE memo_id = ?`).bind(id).run();
-            
+
             // Add new tags
             for (const tagName of body.tags) {
               const trimmedTag = validateTagName(tagName);
               await env.DB.prepare(
                 `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
               ).bind(trimmedTag, now).run();
-              
+
               const { results: tagResult } = await env.DB.prepare(
                 `SELECT id FROM tags WHERE name = ?`
               ).bind(trimmedTag).all();
-              
+
               if (tagResult.length > 0) {
                 await env.DB.prepare(
                   `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
@@ -343,7 +320,7 @@ export default {
               }
             }
           }
-          
+
           const { results } = await env.DB.prepare(
             `SELECT m.id, m.content, m.created_at as createdAt, m.updated_at as updatedAt, GROUP_CONCAT(t.name) as tags
              FROM memos m
@@ -352,14 +329,14 @@ export default {
              WHERE m.id = ?
              GROUP BY m.id`
           ).bind(id).all();
-          
+
           if (results.length === 0) {
             return createResponse({ error: 'Memo not found' }, 404, corsHeaders);
           }
-          
+
           const memo = results[0];
           memo.tags = memo.tags ? memo.tags.split(',') : [];
-          
+
           return createResponse({ memo }, 200, corsHeaders);
         } else {
           return createResponse({ error: 'Failed to update memo' }, 500, corsHeaders);
@@ -372,78 +349,18 @@ export default {
     // DELETE /api/memos/:id - Soft delete memo
     if (url.pathname.startsWith('/api/memos/') && request.method === 'DELETE') {
       try {
-        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
-        if (!match) {
-          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
-        }
-        const id = match[1];
+        const id = url.pathname.split('/').pop();
         validateId(id);
-        
+
         const now = new Date().toISOString();
-        const { success, changes } = await env.DB.prepare(
+        const { success } = await env.DB.prepare(
           'UPDATE memos SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
         ).bind(now, id).run();
-        
-        if (success && changes > 0) {
+
+        if (success) {
           return createResponse({ success: true, message: 'Memo deleted' }, 200, corsHeaders);
         } else {
-          return createResponse({ error: 'Memo not found or already deleted' }, 404, corsHeaders);
-        }
-      } catch (error) {
-        return createResponse({ error: error.message }, 400, corsHeaders);
-      }
-    }
-
-    // GET /api/memos/deleted - List deleted memos (trash)
-    if (url.pathname === '/api/memos/deleted' && request.method === 'GET') {
-      try {
-        const page = parseInt(url.searchParams.get('page') || '1', 10);
-        const limit = parseInt(url.searchParams.get('limit') || '20', 10);
-        const offset = (page - 1) * limit;
-        
-        const { results } = await env.DB.prepare(
-          `SELECT id, content, created_at as createdAt, updated_at as updatedAt, deleted_at as deletedAt
-           FROM memos 
-           WHERE deleted_at IS NOT NULL 
-           ORDER BY deleted_at DESC 
-           LIMIT ? OFFSET ?`
-        ).bind(limit, offset).all();
-        
-        const { results: countResults } = await env.DB.prepare(
-          `SELECT COUNT(*) as total FROM memos WHERE deleted_at IS NOT NULL`
-        ).all();
-        
-        const total = countResults[0]?.total || 0;
-        
-        return createResponse({
-          memos: results,
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit)
-          }
-        }, 200, corsHeaders);
-      } catch (error) {
-        return createResponse({ error: error.message }, 500, corsHeaders);
-      }
-    }
-
-    // PUT /api/memos/:id/restore - Restore deleted memo
-    if (url.pathname.match(/\/api\/memos\/\d+\/restore$/) && request.method === 'PUT') {
-      try {
-        const match = url.pathname.match(/\/api\/memos\/(\d+)\/restore$/);
-        const id = match[1];
-        validateId(id);
-        
-        const { success, changes } = await env.DB.prepare(
-          'UPDATE memos SET deleted_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL'
-        ).bind(new Date().toISOString(), id).run();
-        
-        if (success && changes > 0) {
-          return createResponse({ success: true, message: 'Memo restored' }, 200, corsHeaders);
-        } else {
-          return createResponse({ error: 'Memo not found or not deleted' }, 404, corsHeaders);
+          return createResponse({ error: 'Memo not found' }, 404, corsHeaders);
         }
       } catch (error) {
         return createResponse({ error: error.message }, 400, corsHeaders);
@@ -460,7 +377,7 @@ export default {
            GROUP BY t.id
            ORDER BY t.name`
         ).all();
-        
+
         return createResponse({ tags: results }, 200, corsHeaders);
       } catch (error) {
         return createResponse({ error: error.message }, 500, corsHeaders);
@@ -470,16 +387,12 @@ export default {
     // DELETE /api/tags/:id - Delete tag
     if (url.pathname.startsWith('/api/tags/') && request.method === 'DELETE') {
       try {
-        const match = url.pathname.match(/\/api\/(?:memos|tags)\/(\d+)$/);
-        if (!match) {
-          return createResponse({ error: 'Invalid ID format' }, 400, corsHeaders);
-        }
-        const id = match[1];
+        const id = url.pathname.split('/').pop();
         validateId(id);
-        
-        const { success, changes } = await env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
-        
-        if (success && changes > 0) {
+
+        const { success } = await env.DB.prepare('DELETE FROM tags WHERE id = ?').bind(id).run();
+
+        if (success) {
           return createResponse({ success: true, message: 'Tag deleted' }, 200, corsHeaders);
         } else {
           return createResponse({ error: 'Tag not found' }, 404, corsHeaders);
@@ -505,12 +418,12 @@ export default {
 
         const name = validateTagName(body.name);
         const now = new Date().toISOString();
-        
-        const { success, changes } = await env.DB.prepare(
+
+        const { success } = await env.DB.prepare(
           'INSERT INTO tags (name, created_at) VALUES (?, ?)'
         ).bind(name, now).run();
-        
-        if (success && changes > 0) {
+
+        if (success) {
           const { results } = await env.DB.prepare(
             'SELECT * FROM tags ORDER BY created_at DESC LIMIT 1'
           ).all();
@@ -526,7 +439,7 @@ export default {
     // GET / - Serve HTML
     if (url.pathname === '/' || url.pathname === '') {
       return new Response(getHtml(), {
-        headers: { 'Content-Type': 'text/html' }
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
       });
     }
 
@@ -545,7 +458,6 @@ function getHtml() {
   
   <!-- Phosphor Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -779,6 +691,7 @@ function getHtml() {
     
     .btn-search { 
       background: var(--bg-tertiary);
+      color: var(--text-primary);
       margin-left: 12px;
       box-shadow: var(--shadow-sm);
     }
@@ -805,6 +718,10 @@ function getHtml() {
     
     .btn-search:hover i,
     .btn-theme:hover i {
+      color: white;
+    }
+    
+    .btn-search:hover {
       color: white;
     }
     
@@ -877,113 +794,6 @@ function getHtml() {
       opacity: 1;
     }
     
-        /* Markdown content styles */
-    .memo-content {
-      font-size: 15px;
-      line-height: 1.8;
-      color: var(--text-primary);
-      word-break: break-word;
-      overflow-wrap: break-word;
-    }
-    
-    .memo-content h1,
-    .memo-content h2,
-    .memo-content h3,
-    .memo-content h4,
-    .memo-content h5,
-    .memo-content h6 {
-      margin-top: 16px;
-      margin-bottom: 12px;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    
-    .memo-content h1 { font-size: 1.5em; }
-    .memo-content h2 { font-size: 1.3em; }
-    .memo-content h3 { font-size: 1.1em; }
-    
-    .memo-content p {
-      margin-bottom: 12px;
-    }
-    
-    .memo-content ul,
-    .memo-content ol {
-      margin-bottom: 12px;
-      padding-left: 24px;
-    }
-    
-    .memo-content li {
-      margin-bottom: 4px;
-    }
-    
-    .memo-content code {
-      background: var(--bg-tertiary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.9em;
-    }
-    
-    .memo-content pre {
-      background: var(--bg-tertiary);
-      padding: 16px;
-      border-radius: var(--radius-md);
-      overflow-x: auto;
-      margin-bottom: 12px;
-    }
-    
-    .memo-content pre code {
-      background: none;
-      padding: 0;
-    }
-    
-    .memo-content blockquote {
-      border-left: 4px solid var(--accent-blue);
-      padding-left: 16px;
-      margin: 12px 0;
-      color: var(--text-secondary);
-    }
-    
-    .memo-content a {
-      color: var(--accent-blue);
-      text-decoration: none;
-    }
-    
-    .memo-content a:hover {
-      text-decoration: underline;
-    }
-    
-    .memo-content img {
-      max-width: 100%;
-      border-radius: var(--radius-sm);
-      margin: 8px 0;
-    }
-    
-    .memo-content hr {
-      border: none;
-      border-top: 1px solid var(--glass-border);
-      margin: 16px 0;
-    }
-    
-    .memo-content table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 12px;
-    }
-    
-    .memo-content th,
-    .memo-content td {
-      padding: 8px 12px;
-      border: 1px solid var(--glass-border);
-      text-align: left;
-    }
-    
-    .memo-content th {
-      background: var(--bg-tertiary);
-      font-weight: 600;
-    }
-
-    /* Original memo-content style */
     .memo-content { 
       font-size: 15px; 
       line-height: 1.7; 
@@ -1983,13 +1793,281 @@ function getHtml() {
       font-size: 13px;
       margin-top: 24px;
     }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      min-width: 280px;
+      max-width: 400px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: toastSlideIn 0.3s ease;
+      transition: all 0.3s ease;
+    }
+
+    .toast.hide {
+      animation: toastSlideOut 0.3s ease forwards;
+    }
+
+    @keyframes toastSlideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes toastSlideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    .toast-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .toast-message {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .toast-action {
+      background: var(--accent-gradient);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .toast-action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error { border-left: 3px solid var(--error); }
+    .toast.warning { border-left: 3px solid var(--warning); }
+    .toast.info { border-left: 3px solid var(--accent-blue); }
+
+    /* Markdown Styles */
+    .memo-content.markdown {
+      line-height: 1.8;
+    }
+
+    .memo-content.markdown h1,
+    .memo-content.markdown h2,
+    .memo-content.markdown h3,
+    .memo-content.markdown h4 {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .memo-content.markdown h1 { font-size: 1.5em; }
+    .memo-content.markdown h2 { font-size: 1.3em; }
+    .memo-content.markdown h3 { font-size: 1.1em; }
+
+    .memo-content.markdown p {
+      margin-bottom: 12px;
+    }
+
+    .memo-content.markdown ul,
+    .memo-content.markdown ol {
+      margin-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .memo-content.markdown li {
+      margin-bottom: 4px;
+    }
+
+    .memo-content.markdown code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9em;
+    }
+
+    .memo-content.markdown pre {
+      background: var(--bg-tertiary);
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      margin-bottom: 12px;
+    }
+
+    .memo-content.markdown pre code {
+      background: none;
+      padding: 0;
+    }
+
+    .memo-content.markdown blockquote {
+      border-left: 3px solid var(--accent-blue);
+      padding-left: 12px;
+      margin-left: 0;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+    }
+
+    .memo-content.markdown a {
+      color: var(--accent-blue);
+      text-decoration: none;
+    }
+
+    .memo-content.markdown a:hover {
+      text-decoration: underline;
+    }
+
+    .memo-content.markdown strong {
+      font-weight: 600;
+    }
+
+    .memo-content.markdown em {
+      font-style: italic;
+    }
+
+    .memo-content.markdown hr {
+      border: none;
+      border-top: 1px solid var(--glass-border);
+      margin: 16px 0;
+    }
+
+    /* Search Area */
+    .search-area {
+      margin-bottom: 16px;
+      animation: slideIn 0.2s ease;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 4px 4px 4px 12px;
+      transition: all 0.3s ease;
+    }
+
+    .search-box:focus-within {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+
+    .search-input {
+      border: none;
+      background: transparent;
+      flex: 1;
+      padding: 8px 0;
+      color: var(--text-primary);
+      outline: none;
+      font-size: 14px;
+      min-width: 0;
+    }
+    
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .search-action-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--accent-blue);
+    }
+
+    .export-area {
+      display: flex;
+      align-items: center;
+    }
+
+    /* Keyboard shortcut hint */
+    .shortcut-hint {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .shortcut-hint.show {
+      opacity: 1;
+    }
+
+    kbd {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      border: 1px solid var(--glass-border);
+    }
   </style>
 </head>
 <body>
   <!-- Login Overlay -->
   <div id="loginOverlay" class="login-overlay">
     <div class="login-container">
-      <div class="login-icon">🔐</div>
+      <div class="login-icon">🔒</div>
       <h1 class="login-title">访问受限</h1>
       <p class="login-subtitle">请输入口令继续访问 Memos</p>
       <div class="login-input-group">
@@ -2000,7 +2078,7 @@ function getHtml() {
         进入系统
       </button>
       <div id="loginError" class="login-error">口令错误，请重试</div>
-      <p class="login-hint">💡 提示：默认口令为 memos123</p>
+      <p class="login-hint">💡 提示：默认口令为 gandalf</p>
     </div>
   </div>
 
@@ -2039,23 +2117,31 @@ function getHtml() {
       
       <div id="filterInfo"></div>
       
-      <!-- Trash/Recycle Bin -->
-      <div class="trash-area" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--glass-border);">
-        <button class="trash-btn" onclick="showTrash()" style="display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 16px; background: transparent; border: 1px solid var(--glass-border); border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer; transition: all 0.2s; font-size: 14px;">
-          <i class="ph ph-trash" style="font-size: 20px;"></i>
-          <span>回收站</span>
-          <span id="trashCount" style="margin-left: auto; background: var(--error); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; display: none;">0</span>
+      <!-- Search Bar -->
+      <div class="search-area" id="searchArea" style="display: none;">
+        <div class="search-box">
+          <input type="text" id="searchInput" class="search-input" placeholder="搜索 memos...">
+          <button class="search-action-btn" onclick="searchMemos()" title="搜索">
+            <i class="ph ph-magnifying-glass"></i>
+          </button>
+          <button class="search-action-btn" onclick="clearSearch()" title="清除">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Export Button Area -->
+      <div class="export-area" style="margin-bottom: 16px;">
+        <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="exportData()">
+          <i class="ph ph-download-simple"></i> 导出数据
+        </button>
+        <button class="btn btn-search" id="searchToggleBtn" onclick="toggleSearchBar()" style="margin-left: 8px;">
+          <i class="ph ph-magnifying-glass"></i> 搜索
         </button>
       </div>
     </div>
-    <div class="main" id="mainContent">
-      <div id="trashView" style="display: none;">
-        <h1><i class="ph ph-trash"></i> 回收站</h1>
-        <div class="memos-list" id="trashList"></div>
-        <div id="trashPagination"></div>
-      </div>
-      <div id="normalView">
-        <h1><i class="ph ph-notebook"></i> Memos</h1>
+    <div class="main">
+      <h1><i class="ph ph-notebook"></i> Memos</h1>
       <div class="input-area">
         <textarea id="memoInput" placeholder="Write your thoughts..."></textarea>
         <div style="margin-top: 12px;">
@@ -2065,20 +2151,25 @@ function getHtml() {
           <button class="btn" id="addBtn" onclick="addMemo()">
             <i class="ph ph-plus-circle"></i> Add Memo
           </button>
-          <button class="btn btn-search" id="searchBtn" onclick="toggleSearch()">
-            <i class="ph ph-magnifying-glass"></i>
-          </button>
           <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
             <i class="ph ph-sun"></i>
-          </button>
-          <button class="btn" onclick="showShortcutsHelp()" title="快捷键" style="background: var(--bg-tertiary); margin-left: 8px;">
-            <i class="ph ph-keyboard"></i>
           </button>
         </div>
       </div>
       <div class="memos-list" id="memosList"></div>
       <div id="pagination"></div>
     </div>
+  </div>
+  
+  <!-- Toast Notification -->
+  <div id="toastContainer" class="toast-container"></div>
+  
+  <!-- Keyboard Shortcut Hint -->
+  <div id="shortcutHint" class="shortcut-hint">
+    <div><kbd>Ctrl</kbd> + <kbd>/</kbd> 帮助</div>
+    <div><kbd>Ctrl</kbd> + <kbd>N</kbd> 新建</div>
+    <div><kbd>Ctrl</kbd> + <kbd>F</kbd> 搜索</div>
+    <div><kbd>Esc</kbd> 关闭</div>
   </div>
   
   <!-- Custom Modal Dialog -->
@@ -2100,19 +2191,19 @@ function getHtml() {
   
   <script>
     // Check login status on page load
-    (function checkLogin() {
-      const isLoggedIn = sessionStorage.getItem('memos_logged_in');
+    (function() {
+      var isLoggedIn = sessionStorage.getItem('memos_logged_in');
       if (isLoggedIn === 'true') {
         document.getElementById('loginOverlay').classList.add('hidden');
       }
     })();
 
     // Login function
-    async function doLogin() {
-      const input = document.getElementById('loginInput');
-      const btn = document.getElementById('loginBtn');
-      const error = document.getElementById('loginError');
-      const password = input.value.trim();
+    window.doLogin = function() {
+      var input = document.getElementById('loginInput');
+      var btn = document.getElementById('loginBtn');
+      var error = document.getElementById('loginError');
+      var password = input.value.trim();
       
       if (!password) {
         error.textContent = '请输入口令';
@@ -2124,20 +2215,13 @@ function getHtml() {
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner" style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;"></span> 验证中...';
       
-      try {
-        const res = await fetch('/api/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: password })
-        });
-        
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || '请求失败: ' + res.status);
-        }
-        
-        const data = await res.json();
-        
+      fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
         if (data.success) {
           sessionStorage.setItem('memos_logged_in', 'true');
           sessionStorage.setItem('memos_token', data.token);
@@ -2149,20 +2233,21 @@ function getHtml() {
           input.value = '';
           input.focus();
         }
-      } catch (err) {
-        console.error('Login error:', err);
-        error.textContent = '网络错误，请检查网络连接或刷新页面重试';
-        error.classList.add('show');
-      } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="ph ph-sign-in"></i> 进入系统';
-      }
+      })
+      .catch(function(err) {
+        error.textContent = '验证失败，请重试';
+        error.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ph ph-sign-in"></i> 进入系统';
+      });
     }
 
     // Enter key to login
     document.getElementById('loginInput').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
-        doLogin();
+        window.doLogin();
       }
     });
 
@@ -2308,7 +2393,8 @@ function getHtml() {
         .then(function(data) {
           allMemos = data.memos || [];
           renderCalendar();
-          if (!isSearching && !selectedDate && !selectedTag) {
+          // Don't re-render memos if in edit mode to avoid losing edits
+          if (!isSearching && !selectedDate && !selectedTag && !editingId) {
             renderMemos(data.memos);
           }
           renderPagination(data.pagination);
@@ -2327,7 +2413,7 @@ function getHtml() {
       }
       let html = "";
       memos.forEach(function(memo, index) {
-        const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(\'' + escapeJsString(escapeHtml(tagName)) + '\')">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
+        const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tagName) + String.fromCharCode(39) + ')">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
         
         if (editingId === memo.id) {
           const currentTags = memo.tags ? memo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }).join(', ') : '';
@@ -2345,16 +2431,19 @@ function getHtml() {
           editHtml += '</div></div>';
           html += editHtml;
         } else {
-          let content = marked.parse(memo.content, { 
-            breaks: true,
-            sanitize: false 
-          });
+          // Use Markdown parser for content
+          let content = parseMarkdown(memo.content);
+          
+          // Highlight search keyword if in search mode
           if (currentSearchKeyword) {
-            const regex = new RegExp('(' + escapeHtml(currentSearchKeyword) + ')', 'gi');
-            content = content.replace(regex, '<span class="highlight">$1</span>');
+            content = content.replace(
+              new RegExp('(' + escapeHtml(currentSearchKeyword) + ')', 'gi'),
+              '<span class="highlight">$1</span>'
+            );
           }
+          
           var viewHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's">';
-          viewHtml += '<div class="memo-content">' + content + '</div>';
+          viewHtml += '<div class="memo-content markdown">' + content + '</div>';
           viewHtml += tagsHtml;
           viewHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
           viewHtml += '<div class="memo-actions">';
@@ -2408,23 +2497,14 @@ function getHtml() {
       return div.innerHTML;
     }
 
-    function escapeJsString(text) {
-      return text.replace(/[\\'"\n\r]/g, function(match) {
-        return {
-          '\\': '\\\\',
-          "'": "\\'",
-          '"': '\\"',
-          '\n': '\\n',
-          '\r': '\\r'
-        }[match];
-      });
-    }
-
-    function addMemo() {
+    window.addMemo = async function() {
       const input = document.getElementById("memoInput");
       const tagsInput = document.getElementById("tagsInput");
       const content = input.value.trim();
-      if (!content) return alert("Please enter content");
+      if (!content) {
+        await showModal("请输入 Memo 内容", "提示", false);
+        return;
+      }
       
       const tagsValue = tagsInput.value.trim();
       const tags = tagsValue ? tagsValue.split(',').map(function(t) { return t.trim(); }).filter(function(t) { return t; }) : [];
@@ -2441,16 +2521,70 @@ function getHtml() {
         tagsInput.value = "";
         loadMemos();
         loadTags();
-      }).catch(function(error) {
+      }).catch(async function(error) {
         console.error('Add failed:', error);
-        alert('Failed to add memo, please try again');
+        await showModal('添加 Memo 失败，请重试', '错误', true);
       });
     }
 
-    async function deleteMemo(id) {
-      const confirmed = await showModal("确定要删除这条 memo 吗？此操作不可撤销。", "删除确认", true);
+    // Store deleted memo for undo
+    let lastDeletedMemo = null;
+    let undoTimeout = null;
+
+    window.deleteMemo = async function(id) {
+      // Find the memo before deleting
+      const memoToDelete = allMemos.find(function(m) { return m.id === id; });
+      
+      const confirmed = await showModal("确定要删除这条 memo 吗？", "删除确认", true);
       if (!confirmed) return;
+      
       fetch("/api/memos/" + id, { method: "DELETE" }).then(function() {
+        // Store deleted memo info for undo
+        lastDeletedMemo = memoToDelete;
+        
+        loadMemos();
+        loadTags();
+        
+        // Show undo toast
+        showToast({
+          title: '已删除',
+          message: 'Memo 已成功删除',
+          type: 'success',
+          action: {
+            text: '撤销',
+            callback: undoDelete
+          },
+          duration: 5000
+        });
+        
+        // Clear undo after 5 seconds
+        if (undoTimeout) clearTimeout(undoTimeout);
+        undoTimeout = setTimeout(function() {
+          lastDeletedMemo = null;
+        }, 5000);
+      });
+    }
+    
+    window.undoDelete = async function() {
+      if (!lastDeletedMemo) return;
+      
+      // Recreate the memo
+      fetch("/api/memos", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ 
+          content: lastDeletedMemo.content, 
+          tags: lastDeletedMemo.tags ? lastDeletedMemo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }) : []
+        })
+      }).then(function() {
+        showToast({
+          title: '已撤销',
+          message: 'Memo 已恢复',
+          type: 'success',
+          duration: 3000
+        });
+        lastDeletedMemo = null;
+        if (undoTimeout) clearTimeout(undoTimeout);
         loadMemos();
         loadTags();
       });
@@ -2462,13 +2596,15 @@ function getHtml() {
     initTheme();
     refreshInterval = setInterval(loadMemos, 30000);
 
-    function startEdit(id) {
+    window.startEdit = function(id) {
       editingId = id;
       if (refreshInterval) {
         clearInterval(refreshInterval);
         refreshInterval = null;
       }
-      loadMemos();
+      // Directly render to show the edit interface
+      renderMemos(allMemos);
+      
       setTimeout(function() {
         const textarea = document.getElementById("edit-" + id);
         if (textarea) {
@@ -2478,7 +2614,7 @@ function getHtml() {
       }, 50);
     }
 
-    function saveEdit(id) {
+    window.saveEdit = function(id) {
       const textarea = document.getElementById("edit-" + id);
       const tagsInput = document.getElementById("edit-tags-" + id);
       const content = textarea.value.trim();
@@ -2499,86 +2635,12 @@ function getHtml() {
       });
     }
 
-    function cancelEdit() {
+    window.cancelEdit = function() {
       editingId = null;
       loadMemos();
-      refreshInterval = setInterval(loadMemos, 30000);
-    }
-
-    function toggleSearch() {
-      const input = document.getElementById("memoInput");
-      const addBtn = document.getElementById("addBtn");
-      const searchBtn = document.getElementById("searchBtn");
-
-      searchMode = !searchMode;
-
-      if (searchMode) {
-        input.placeholder = "Search keywords...";
-        addBtn.innerHTML = '<i class="ph ph-magnifying-glass"></i> Search';
-        addBtn.onclick = searchMemos;
-        searchBtn.innerHTML = '<i class="ph ph-x"></i>';
-        searchBtn.style.background = "var(--bg-tertiary)";
-        input.value = "";
-        input.focus();
-        if (refreshInterval) {
-          clearInterval(refreshInterval);
-          refreshInterval = null;
-        }
-      } else {
-        clearSearch();
-      }
-    }
-
-    function searchMemos() {
-      const input = document.getElementById("memoInput");
-      const keyword = input.value.trim();
-      if (!keyword) return alert("Please enter search keyword");
-      
-      currentSearchKeyword = keyword.toLowerCase();
-      selectedDate = null;
-      selectedTag = null;
-      currentPage = 1;
-      isSearching = true;
-      searchMode = true;
-
-      showLoading();
-      fetch("/api/memos?search=" + encodeURIComponent(keyword) + "&page=" + currentPage)
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
-          allMemos = data.memos;
-          renderCalendar();
-          renderMemos(data.memos);
-          renderPagination(data.pagination);
-          document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span data-type="search">Search: ' + escapeHtml(keyword) + ' (' + data.pagination.total + ')</span><button class="clear-filter" onclick="clearSearch()">Clear</button></div>';
-        })
-        .catch(function(err) {
-          console.error("Search failed:", err);
-          alert("Error occurred while searching, please try again later");
-          isSearching = false;
-          searchMode = false;
-        });
-    }
-
-    function clearSearch() {
-      searchMode = false;
-      isSearching = false;
-      currentSearchKeyword = '';
-      const input = document.getElementById("memoInput");
-      const addBtn = document.getElementById("addBtn");
-      const searchBtn = document.getElementById("searchBtn");
-
-      input.placeholder = "Write your thoughts...";
-      addBtn.innerHTML = '<i class="ph ph-plus-circle"></i> Add Memo';
-      addBtn.onclick = addMemo;
-      searchBtn.innerHTML = '<i class="ph ph-magnifying-glass"></i>';
-      searchBtn.style.background = "var(--bg-tertiary)";
-      input.value = "";
-      document.getElementById("filterInfo").innerHTML = "";
-
       if (!refreshInterval) {
         refreshInterval = setInterval(loadMemos, 30000);
       }
-      loadMemos();
     }
 
     function toggleTheme() {
@@ -2587,13 +2649,13 @@ function getHtml() {
       const icon = btn.querySelector('i');
       
       if (body.classList.contains('light-theme')) {
-        // 切换到深色主题
+        // 鍒囨崲鍒版繁鑹蹭富棰?
         body.classList.remove('light-theme');
         icon.classList.remove('ph-moon');
         icon.classList.add('ph-sun');
         localStorage.setItem('theme', 'dark');
       } else {
-        // 切换到浅色主题
+        // 鍒囨崲鍒版祬鑹蹭富棰?
         body.classList.add('light-theme');
         icon.classList.remove('ph-sun');
         icon.classList.add('ph-moon');
@@ -2615,7 +2677,7 @@ function getHtml() {
 
     function switchMobileTab(tab) {
       // Update active state
-      document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+      document.querySelectorAll('.mobile-nav-btn').forEach(function(btn) {
         btn.classList.remove('active');
       });
       event.currentTarget.classList.add('active');
@@ -2627,9 +2689,10 @@ function getHtml() {
     }
 
     function toggleMobileSearch() {
-      toggleSearch();
-      const input = document.getElementById('memoInput');
-      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toggleSearchBar();
+      if (document.getElementById('searchArea').style.display !== 'none') {
+        document.getElementById('searchInput').focus();
+      }
     }
 
     // Close sidebar when clicking outside on mobile
@@ -2647,14 +2710,16 @@ function getHtml() {
     // Custom Modal Dialog functions
     let modalResolve = null;
     
-    function showModal(message, title = "确认操作", isDanger = true) {
-      return new Promise((resolve) => {
+    function showModal(message, title, isDanger) {
+      if (typeof title === 'undefined') title = "确认操作";
+      if (typeof isDanger === 'undefined') isDanger = true;
+      return new Promise(function(resolve) {
         modalResolve = resolve;
-        const modal = document.getElementById("customModal");
-        const messageEl = document.getElementById("modalMessage");
-        const titleEl = document.querySelector(".modal-title");
-        const iconEl = document.querySelector(".modal-icon");
-        const confirmBtn = document.getElementById("modalConfirm");
+        var modal = document.getElementById("customModal");
+        var messageEl = document.getElementById("modalMessage");
+        var titleEl = document.querySelector(".modal-title");
+        var iconEl = document.querySelector(".modal-icon");
+        var confirmBtn = document.getElementById("modalConfirm");
         
         messageEl.textContent = message;
         titleEl.textContent = title;
@@ -2680,25 +2745,25 @@ function getHtml() {
     }
     
     function hideModal() {
-      const modal = document.getElementById("customModal");
+      var modal = document.getElementById("customModal");
       modal.classList.remove("active");
-      setTimeout(() => {
+      setTimeout(function() {
         modal.style.display = "none";
       }, 300);
     }
     
     // Modal event listeners
-    document.getElementById("modalCancel").addEventListener("click", () => {
+    document.getElementById("modalCancel").addEventListener("click", function() {
       hideModal();
       if (modalResolve) modalResolve(false);
     });
     
-    document.getElementById("modalConfirm").addEventListener("click", () => {
+    document.getElementById("modalConfirm").addEventListener("click", function() {
       hideModal();
       if (modalResolve) modalResolve(true);
     });
     
-    document.getElementById("customModal").addEventListener("click", (e) => {
+    document.getElementById("customModal").addEventListener("click", function(e) {
       if (e.target.id === "customModal") {
         hideModal();
         if (modalResolve) modalResolve(false);
@@ -2735,7 +2800,7 @@ function getHtml() {
           let html = "";
           data.tags.forEach(function(tag) {
             const isActive = selectedTag === tag.name;
-            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + escapeJsString(escapeHtml(tag.name)) + '\')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
+            html += '<span class="tag' + (isActive ? ' active' : '') + '" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tag.name) + String.fromCharCode(39) + ')">' + escapeHtml(tag.name) + '<span class="tag-delete" onclick="event.stopPropagation();deleteTag(' + tag.id + ')">×</span></span>';
           });
           container.innerHTML = html;
         })
@@ -2806,218 +2871,284 @@ function getHtml() {
       }
     });
 
-    // Trash/Recycle Bin functions
-    let trashPage = 1;
-    
-    async function showTrash() {
-      document.getElementById('normalView').style.display = 'none';
-      document.getElementById('trashView').style.display = 'block';
-      document.querySelector('.input-area').style.display = 'none';
-      trashPage = 1;
-      await loadTrash();
-    }
-    
-    async function hideTrash() {
-      document.getElementById('normalView').style.display = 'block';
-      document.getElementById('trashView').style.display = 'none';
-      document.querySelector('.input-area').style.display = 'block';
-    }
-    
-    async function loadTrash() {
-      try {
-        const res = await fetch('/api/memos/deleted?page=' + trashPage);
-        const data = await res.json();
-        
-        // Update trash count badge
-        const trashCount = document.getElementById('trashCount');
-        if (data.pagination.total > 0) {
-          trashCount.textContent = data.pagination.total;
-          trashCount.style.display = 'inline-block';
-        } else {
-          trashCount.style.display = 'none';
-        }
-        
-        renderTrashMemos(data.memos);
-        renderTrashPagination(data.pagination);
-      } catch (error) {
-        console.error('Failed to load trash:', error);
-        document.getElementById('trashList').innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">加载失败</div></div>';
-      }
-    }
-    
-    function renderTrashMemos(memos) {
-      const container = document.getElementById('trashList');
-      if (memos.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🗑️</div><div class="empty-state-text">回收站是空的</div></div>';
-        return;
+    // Toast notification function
+    function showToast(options) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (options.type || 'info');
+      
+      const iconMap = {
+        success: 'ph-check-circle',
+        error: 'ph-x-circle',
+        warning: 'ph-warning',
+        info: 'ph-info'
+      };
+      
+      var iconClass = iconMap[options.type] || iconMap.info;
+      var actionHtml = '';
+      if (options.action) {
+        actionHtml = '<button class="toast-action" onclick="undoDelete()">' + escapeHtml(options.action.text) + '</button>';
       }
       
-      let html = '';
-      memos.forEach(function(memo, index) {
-        let content = marked.parse(memo.content, { 
-          breaks: true,
-          sanitize: false 
+      toast.innerHTML = '<i class="ph ' + iconClass + ' toast-icon"></i>' +
+        '<div class="toast-content">' +
+          '<div class="toast-title">' + escapeHtml(options.title) + '</div>' +
+          '<div class="toast-message">' + escapeHtml(options.message) + '</div>' +
+        '</div>' + actionHtml;
+      
+      container.appendChild(toast);
+      
+      // Auto remove
+      setTimeout(function() {
+        toast.classList.add('hide');
+        setTimeout(function() { toast.remove(); }, 300);
+      }, options.duration || 3000);
+    }
+
+    // Simple Markdown parser
+    function parseMarkdown(text) {
+      if (!text) return '';
+      
+      var html = escapeHtml(text);
+      var parts = [];
+      var inCode = false;
+      var current = '';
+      
+      // Parse inline code first (avoid using backticks in character class)
+      for (var i = 0; i < html.length; i++) {
+        if (html.charAt(i) === String.fromCharCode(96) && (i === 0 || html.charAt(i-1) !== '\\\\')) {
+          if (inCode) {
+            parts.push('<code>' + current + '</code>');
+            current = '';
+          } else {
+            parts.push(current);
+            current = '';
+          }
+          inCode = !inCode;
+        } else {
+          current += html[i];
+        }
+      }
+      parts.push(current);
+      html = parts.join('');
+      
+      // Headers
+      html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+      html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+      html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+      
+      // Bold and Italic
+      html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
+      html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+      html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>');
+      html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+      html = html.replace(/_(.*?)_/g, '<em>$1</em>');
+      
+      // Code blocks - process triple backticks (use String.fromCharCode to avoid template literal issues)
+      var tick = String.fromCharCode(96);
+      var codeBlockStart = html.indexOf(tick + tick + tick);
+      while (codeBlockStart !== -1) {
+        var codeBlockEnd = html.indexOf(tick + tick + tick, codeBlockStart + 3);
+        if (codeBlockEnd === -1) break;
+        var before = html.substring(0, codeBlockStart);
+        var code = html.substring(codeBlockStart + 3, codeBlockEnd);
+        var after = html.substring(codeBlockEnd + 3);
+        html = before + '<pre><code>' + code + '</code></pre>' + after;
+        codeBlockStart = html.indexOf(tick + tick + tick, codeBlockStart + 1);
+      }
+      
+      // Links
+      html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      
+      // Lists
+      html = html.replace(/^\\* (.*$)/gim, '<li>$1</li>');
+      html = html.replace(/^- (.*$)/gim, '<li>$1</li>');
+      html = html.replace(/^\\d+\\. (.*$)/gim, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
+      html = html.replace(/<\\/ul>\\s*<ul>/g, '');
+      
+      // Blockquotes
+      html = html.replace(/^&gt; (.*$)/gim, '<blockquote>$1</blockquote>');
+      
+      // Horizontal rule
+      html = html.replace(/^---$/gim, '<hr>');
+      
+      // Line breaks
+      html = html.replace(/\\n/g, '<br>');
+      
+      return html;
+    }
+
+    // New search bar toggle function
+    function toggleSearchBar() {
+      const searchArea = document.getElementById('searchArea');
+      const toggleBtn = document.getElementById('searchToggleBtn');
+      const isVisible = searchArea.style.display !== 'none';
+      
+      if (isVisible) {
+        searchArea.style.display = 'none';
+        toggleBtn.style.display = 'inline-flex';
+        clearSearch();
+      } else {
+        searchArea.style.display = 'block';
+        toggleBtn.style.display = 'none';
+        document.getElementById('searchInput').focus();
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+        }
+      }
+    }
+
+    // Modified search function
+    function searchMemos() {
+      const input = document.getElementById('searchInput');
+      const keyword = input.value.trim();
+      if (!keyword) return;
+      
+      currentSearchKeyword = keyword.toLowerCase();
+      selectedDate = null;
+      selectedTag = null;
+      currentPage = 1;
+      isSearching = true;
+      searchMode = true;
+
+      showLoading();
+      fetch("/api/memos?search=" + encodeURIComponent(keyword) + "&page=" + currentPage)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          allMemos = data.memos;
+          renderCalendar();
+          renderMemos(data.memos);
+          renderPagination(data.pagination);
+          document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span data-type="search">搜索: ' + escapeHtml(keyword) + ' (' + data.pagination.total + ')</span><button class="clear-filter" onclick="clearSearch()">清除</button></div>';
+        })
+        .catch(function(err) {
+          console.error("Search failed:", err);
+          showToast({
+            title: '搜索失败',
+            message: '搜索时出现错误，请重试',
+            type: 'error',
+            duration: 3000
+          });
+          isSearching = false;
+          searchMode = false;
         });
-        
-        html += '<div class="memo" style="animation-delay: ' + (index * 0.05) + 's;">';
-        html += '<div class="memo-content">' + content + '</div>';
-        html += '<div class="memo-footer" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;">';
-        html += '<div class="memo-time"><i class="ph ph-clock"></i> 删除于 ' + new Date(memo.deletedAt).toLocaleString('zh-CN') + '</div>';
-        html += '<div style="display: flex; gap: 8px;">';
-        html += '<button class="modal-btn" onclick="restoreMemo(' + memo.id + ')" style="background: var(--success); color: white; padding: 8px 16px; font-size: 13px;"><i class="ph ph-arrow-counter-clockwise"></i> 恢复</button>';
-        html += '</div>';
-        html += '</div>';
-        html += '</div>';
-      });
-      container.innerHTML = html;
     }
-    
-    function renderTrashPagination(pagination) {
-      if (!pagination || pagination.totalPages <= 1) {
-        document.getElementById('trashPagination').innerHTML = '';
-        return;
+
+    // Modified clear search
+    function clearSearch() {
+      searchMode = false;
+      isSearching = false;
+      currentSearchKeyword = '';
+      
+      document.getElementById('searchArea').style.display = 'none';
+      document.getElementById('searchToggleBtn').style.display = 'inline-flex';
+      document.getElementById('searchInput').value = '';
+      document.getElementById("filterInfo").innerHTML = "";
+
+      if (!refreshInterval && !editingId) {
+        refreshInterval = setInterval(loadMemos, 30000);
       }
-      
-      let html = '<div class="pagination-container">';
-      html += '<div class="pagination">';
-      html += '<button onclick="goToTrashPage(' + (pagination.page - 1) + ')" ' + (pagination.page === 1 ? 'disabled' : '') + '><i class="ph ph-caret-left"></i></button>';
-      
-      for (let i = 1; i <= pagination.totalPages; i++) {
-        if (i === 1 || i === pagination.totalPages || (i >= pagination.page - 2 && i <= pagination.page + 2)) {
-          html += '<button onclick="goToTrashPage(' + i + ')" ' + (i === pagination.page ? 'class="active"' : '') + '>' + i + '</button>';
-        } else if (i === pagination.page - 3 || i === pagination.page + 3) {
-          html += '<span style="color: var(--text-secondary); padding: 8px;">...</span>';
-        }
-      }
-      
-      html += '<button onclick="goToTrashPage(' + (pagination.page + 1) + ')" ' + (pagination.page === pagination.totalPages ? 'disabled' : '') + '><i class="ph ph-caret-right"></i></button>';
-      html += '</div>';
-      html += '<div class="pagination-info">第 ' + pagination.page + ' 页，共 ' + pagination.totalPages + ' 页 (' + pagination.total + ' 条)</div>';
-      html += '</div>';
-      
-      document.getElementById('trashPagination').innerHTML = html;
+      loadMemos();
     }
-    
-    function goToTrashPage(page) {
-      if (page < 1) return;
-      trashPage = page;
-      loadTrash();
+
+    // Export data function
+    function exportData() {
+      fetch('/api/memos?limit=10000')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          var exportObj = {
+            memos: data.memos,
+            exportDate: new Date().toISOString(),
+            version: '1.0'
+          };
+          
+          var blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'memos-backup-' + new Date().toISOString().split('T')[0] + '.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          showToast({
+            title: '导出成功',
+            message: '已导出 ' + data.memos.length + ' 条 memo',
+            type: 'success',
+            duration: 3000
+          });
+        })
+        .catch(function(err) {
+          console.error('Export failed:', err);
+          showToast({
+            title: '导出失败',
+            message: '导出数据时出现错误',
+            type: 'error',
+            duration: 3000
+          });
+        });
     }
-    
-    async function restoreMemo(id) {
-      const confirmed = await showModal('确定要恢复这条 memo 吗？', '恢复确认', false);
-      if (!confirmed) return;
-      
-      try {
-        const res = await fetch('/api/memos/' + id + '/restore', { method: 'PUT' });
-        const data = await res.json();
-        
-        if (data.success) {
-          loadTrash();
-          loadMemos();
-        } else {
-          await showModal(data.error || '恢复失败', '错误', true);
-        }
-      } catch (error) {
-        console.error('Restore failed:', error);
-        await showModal('恢复失败，请重试', '错误', true);
-      }
-    }
-    
+
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
-      // Ctrl/Cmd + Enter: Save memo (when in input)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (document.activeElement === document.getElementById('memoInput')) {
-          e.preventDefault();
-          if (searchMode) {
-            searchMemos();
-          } else {
-            addMemo();
-          }
-        } else if (editingId && document.activeElement.tagName === 'TEXTAREA') {
-          e.preventDefault();
-          saveEdit(editingId);
-        }
+      // Show shortcut hint when Ctrl/Cmd is pressed
+      if (e.ctrlKey || e.metaKey) {
+        document.getElementById('shortcutHint').classList.add('show');
       }
       
-      // Ctrl/Cmd + N: Focus input and clear
+      // Ctrl/Cmd + N - New memo
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        const input = document.getElementById('memoInput');
-        input.value = '';
-        input.focus();
-        hideTrash();
-      }
-      
-      // Ctrl/Cmd + K: Focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault();
-        if (!searchMode) {
-          toggleSearch();
-        }
         document.getElementById('memoInput').focus();
       }
       
-      // Ctrl/Cmd + T: Toggle trash
-      if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+      // Ctrl/Cmd + F - Search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
-        const trashView = document.getElementById('trashView');
-        if (trashView.style.display === 'none' || trashView.style.display === '') {
-          showTrash();
-        } else {
-          hideTrash();
-        }
+        toggleSearchBar();
       }
       
-      // ESC: Cancel edit or clear search
+      // Ctrl/Cmd + / - Show help
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        showToast({
+          title: '快捷键',
+          message: 'Ctrl+N: 新建 | Ctrl+F: 搜索 | Esc: 关闭',
+          type: 'info',
+          duration: 5000
+        });
+      }
+      
+      // Esc - Close search or cancel edit
       if (e.key === 'Escape') {
-        if (editingId) {
-          cancelEdit();
-        } else if (searchMode) {
+        if (searchMode) {
           clearSearch();
-        } else if (document.getElementById('trashView').style.display === 'block') {
-          hideTrash();
+        } else if (editingId) {
+          cancelEdit();
+        } else if (document.getElementById('searchArea').style.display !== 'none') {
+          clearSearch();
         }
       }
     });
-    
-    // Show keyboard shortcuts help
-    // Show keyboard shortcuts help
-    function showShortcutsHelp() {
-      const shortcuts = [
-        { key: 'Ctrl/Cmd + Enter', desc: '保存/发布 Memo' },
-        { key: 'Ctrl/Cmd + N', desc: '新建 Memo' },
-        { key: 'Ctrl/Cmd + K', desc: '搜索' },
-        { key: 'Ctrl/Cmd + T', desc: '切换回收站' },
-        { key: 'ESC', desc: '取消/退出' }
-      ];
-      
-      let html = '<div style="text-align:left;padding:16px;">';
-      html += '<h3 style="margin-bottom:20px;color:var(--text-primary);">⌨️ 键盘快捷键</h3>';
-      html += '<div style="display:grid;gap:12px;">';
-      
-      shortcuts.forEach(function(item, index) {
-        const borderStyle = index < shortcuts.length - 1 ? 'border-bottom:1px solid var(--glass-border);' : '';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;' + borderStyle + '">';
-        html += '<span>' + item.key + '</span>';
-        html += '<span style="color:var(--text-secondary);">' + item.desc + '</span>';
-        html += '</div>';
-      });
-      
-      html += '</div></div>';
-      
-      // Create modal
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay active';
-      modal.style.cssText = 'z-index:10001;';
-      modal.innerHTML = '<div class="modal-container" style="max-width:400px;">' + html + '<div class="modal-footer" style="margin-top:20px;"><button class="modal-btn" style="background:var(--accent-gradient);color:white;width:100%;" onclick="this.closest(&#39;.modal-overlay&#39;).remove()">知道了</button></div></div>';
-      
-      modal.onclick = function(e) {
-        if (e.target === modal) modal.remove();
-      };
-      document.body.appendChild(modal);
-    }
+
+    // Hide shortcut hint when Ctrl/Cmd is released
+    document.addEventListener('keyup', function(e) {
+      if (e.key === 'Control' || e.key === 'Meta') {
+        setTimeout(function() {
+          document.getElementById('shortcutHint').classList.remove('show');
+        }, 1000);
+      }
+    });
+
+    // Enter key for search input
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        searchMemos();
+      }
+    });
   </script>
   
   <!-- Mobile Floating Action Button -->
