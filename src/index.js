@@ -727,7 +727,7 @@ function getHtml() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 24px;
+      margin-bottom: 10px;
     }
 
     .main-actions {
