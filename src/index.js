@@ -686,7 +686,8 @@ function getHtml() {
     }
     
     .btn:active {
-      transform: translateY(0);
+      transform: translateY(0) scale(0.98);
+      box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
     }
     
     .btn-search { 
@@ -744,13 +745,13 @@ function getHtml() {
     }
     
     /* Glass memo cards - Masonry layout */
-    .memo { 
+    .memo {
       background: var(--glass-bg);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border: 1px solid var(--glass-border);
-      padding: 24px; 
-      border-radius: var(--radius-lg); 
+      padding: 24px;
+      border-radius: var(--radius-lg);
       box-shadow: var(--shadow-sm);
       transition: var(--transition-normal);
       position: relative;
@@ -759,6 +760,12 @@ function getHtml() {
       break-inside: avoid;
       margin-bottom: 24px;
       page-break-inside: avoid;
+    }
+
+    .memo:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent-blue);
     }
     
     @keyframes cardAppear {
@@ -1220,11 +1227,47 @@ function getHtml() {
       box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
     
-    .pagination-info { 
-      text-align: center; 
+    .pagination-info {
+      text-align: center;
       color: var(--text-muted);
       font-size: 14px;
       margin-top: 12px;
+    }
+
+    /* Scroll to top button */
+    .scroll-top-btn {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: var(--shadow-md);
+      transition: all 0.3s ease;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 1000;
+    }
+
+    .scroll-top-btn.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .scroll-top-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-lg);
+      background: var(--accent-blue);
+      color: white;
     }
     
     /* Search highlight */
@@ -1242,16 +1285,29 @@ function getHtml() {
       padding: 60px 20px;
       color: var(--text-muted);
     }
-    
+
     .empty-state-icon {
       font-size: 64px;
       margin-bottom: 20px;
-      opacity: 0.5;
+      opacity: 0.4;
+      animation: float 3s ease-in-out infinite;
     }
-    
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
     .empty-state-text {
       font-size: 18px;
       font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .empty-state-hint {
+      font-size: 14px;
+      opacity: 0.7;
+      margin-top: 12px;
     }
     
     /* Loading state */
@@ -1282,10 +1338,22 @@ function getHtml() {
       flex-wrap: wrap;
       gap: 6px;
     }
-    
+
     .memo-tags .tag {
       font-size: 12px;
       padding: 4px 10px;
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      color: var(--accent-blue);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .memo-tags .tag:hover {
+      background: var(--accent-blue);
+      color: white;
+      transform: scale(1.05);
     }
     
     /* Responsive design */
@@ -1458,11 +1526,18 @@ function getHtml() {
         box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
         z-index: 998;
         transition: all 0.3s ease;
+        animation: fabPulse 2s ease-in-out infinite;
       }
-      
+
+      @keyframes fabPulse {
+        0%, 100% { box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
+        50% { box-shadow: 0 4px 25px rgba(99, 102, 241, 0.6); }
+      }
+
       .fab-btn:hover {
         transform: scale(1.1);
         box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        animation: none;
       }
       
       .fab-btn:active {
@@ -1827,7 +1902,7 @@ function getHtml() {
 
     @keyframes toastSlideIn {
       from {
-        transform: translateX(100%);
+        transform: translateX(120%);
         opacity: 0;
       }
       to {
@@ -2158,6 +2233,9 @@ function getHtml() {
       </div>
       <div class="memos-list" id="memosList"></div>
       <div id="pagination"></div>
+      <button class="scroll-top-btn" id="scrollTopBtn" onclick="scrollToTop()" title="返回顶部">
+        <i class="ph ph-arrow-up"></i>
+      </button>
     </div>
   </div>
   
@@ -2369,7 +2447,7 @@ function getHtml() {
     }
 
     function showEmpty() {
-      document.getElementById("memosList").innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="ph ph-notebook" style="font-size: 64px;"></i></div><div class="empty-state-text">暂无 memo</div></div>';
+      document.getElementById("memosList").innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="ph ph-notebook" style="font-size: 64px;"></i></div><div class="empty-state-text">暂无 memo</div><div class="empty-state-hint">在上方输入框写下你的想法</div></div>';
     }
 
     function loadMemos() {
@@ -3147,6 +3225,21 @@ function getHtml() {
     document.getElementById('searchInput').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         searchMemos();
+      }
+    });
+
+    // Scroll to top button
+    window.scrollToTop = function() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    // Show/hide scroll to top button
+    window.addEventListener('scroll', function() {
+      const btn = document.getElementById('scrollTopBtn');
+      if (window.scrollY > 300) {
+        btn.classList.add('visible');
+      } else {
+        btn.classList.remove('visible');
       }
     });
   </script>
