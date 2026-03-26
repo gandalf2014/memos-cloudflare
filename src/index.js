@@ -454,7 +454,7 @@ function getHtml() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <title>Memos - Modern Notes</title>
+  <title>备忘录</title>
   
   <!-- Phosphor Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
@@ -2069,7 +2069,7 @@ function getHtml() {
     <div class="login-container">
       <div class="login-icon">🔒</div>
       <h1 class="login-title">访问受限</h1>
-      <p class="login-subtitle">请输入口令继续访问 Memos</p>
+      <p class="login-subtitle">请输入口令继续访问</p>
       <div class="login-input-group">
         <input type="password" id="loginInput" class="login-input" placeholder="在此输入口令..." maxlength="50">
       </div>
@@ -2141,15 +2141,15 @@ function getHtml() {
       </div>
     </div>
     <div class="main">
-      <h1><i class="ph ph-notebook"></i> Memos</h1>
+      <h1><i class="ph ph-notebook"></i> 备忘录</h1>
       <div class="input-area">
-        <textarea id="memoInput" placeholder="Write your thoughts..."></textarea>
+        <textarea id="memoInput" placeholder="写下你的想法..."></textarea>
         <div style="margin-top: 12px;">
-          <input type="text" id="tagsInput" placeholder="Tags (comma separated)..." style="width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg-secondary); color: var(--text-primary); transition: var(--transition-fast);">
+          <input type="text" id="tagsInput" placeholder="标签（逗号分隔）..." style="width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg-secondary); color: var(--text-primary); transition: var(--transition-fast);">
         </div>
         <div style="display: flex; align-items: center; margin-top: 4px;">
           <button class="btn" id="addBtn" onclick="addMemo()">
-            <i class="ph ph-plus-circle"></i> Add Memo
+            <i class="ph ph-plus-circle"></i> 添加
           </button>
           <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
             <i class="ph ph-sun"></i>
@@ -2347,7 +2347,7 @@ function getHtml() {
           renderPagination(data.pagination);
           const filterInfo = document.getElementById("filterInfo");
           const dateDisplay = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-          filterInfo.innerHTML = '<div class="filter-info"><span data-type="date">' + dateDisplay + '</span><button class="clear-filter" onclick="clearFilter()">Clear</button></div>';
+          filterInfo.innerHTML = '<div class="filter-info"><span data-type="date">' + dateDisplay + '</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>';
         })
         .catch(function(error) {
           console.error('Filter error:', error);
@@ -2369,7 +2369,7 @@ function getHtml() {
     }
 
     function showEmpty() {
-      document.getElementById("memosList").innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="ph ph-notebook" style="font-size: 64px;"></i></div><div class="empty-state-text">No memos yet</div></div>';
+      document.getElementById("memosList").innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="ph ph-notebook" style="font-size: 64px;"></i></div><div class="empty-state-text">暂无 memo</div></div>';
     }
 
     function loadMemos() {
@@ -2419,13 +2419,13 @@ function getHtml() {
           const currentTags = memo.tags ? memo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }).join(', ') : '';
           var editHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's">';
           editHtml += '<textarea id="edit-' + memo.id + '" style="width:100%;min-height:200px;border:2px solid var(--accent-blue);border-radius:var(--radius-md);padding:12px;font-size:15px;resize:vertical;background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;">' + escapeHtml(memo.content) + '</textarea>';
-          editHtml += '<input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="Tags (comma separated)..." style="width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">';
+          editHtml += '<input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="标签（逗号分隔）..." style="width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">';
           editHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
           editHtml += '<div class="memo-actions memo-actions-edit">';
-          editHtml += '<button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="Save">';
+          editHtml += '<button class="icon-btn icon-save" onclick="saveEdit(' + memo.id + ')" title="保存">';
           editHtml += '<i class="ph ph-check"></i>';
           editHtml += '</button>';
-          editHtml += '<button class="icon-btn icon-cancel" onclick="cancelEdit()" title="Cancel">';
+          editHtml += '<button class="icon-btn icon-cancel" onclick="cancelEdit()" title="取消">';
           editHtml += '<i class="ph ph-x"></i>';
           editHtml += '</button>';
           editHtml += '</div></div>';
@@ -2447,10 +2447,10 @@ function getHtml() {
           viewHtml += tagsHtml;
           viewHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
           viewHtml += '<div class="memo-actions">';
-          viewHtml += '<button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="Edit">';
+          viewHtml += '<button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">';
           viewHtml += '<i class="ph ph-pencil-simple"></i>';
           viewHtml += '</button>';
-          viewHtml += '<button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="Delete">';
+          viewHtml += '<button class="icon-btn icon-delete" onclick="deleteMemo(' + memo.id + ')" title="删除">';
           viewHtml += '<i class="ph ph-trash"></i>';
           viewHtml += '</button>';
           viewHtml += '</div></div>';
@@ -3160,7 +3160,7 @@ function getHtml() {
   <nav class="mobile-nav">
     <button class="mobile-nav-btn active" onclick="switchMobileTab('memos')">
       <i class="ph ph-notebook"></i>
-      <span>Memos</span>
+      <span>备忘录</span>
     </button>
     <button class="mobile-nav-btn" onclick="toggleMobileSidebar()">
       <i class="ph ph-calendar-blank"></i>
