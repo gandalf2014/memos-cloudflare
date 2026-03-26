@@ -570,17 +570,14 @@ function getHtml() {
     }
     
     /* Glassmorphism Sidebar */
-    .sidebar { 
-      width: 300px; 
-      flex-shrink: 0; 
-      background: var(--glass-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-right: 1px solid var(--glass-border);
-      padding: 24px; 
-      position: sticky; 
-      top: 0; 
-      height: 100vh; 
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: transparent;
+      padding: 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
       overflow-y: auto;
       transition: var(--transition-normal);
     }
@@ -887,13 +884,9 @@ function getHtml() {
     
     /* Calendar glass styling */
     .calendar-area {
-      margin-bottom: 32px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      box-shadow: var(--shadow-sm);
+      margin-bottom: 20px;
+      background: transparent;
+      padding: 12px;
     }
 
     .calendar-header {
@@ -934,7 +927,7 @@ function getHtml() {
     .calendar-grid {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
-      gap: 6px;
+      gap: 2px;
       text-align: center;
     }
     
@@ -948,10 +941,10 @@ function getHtml() {
     }
     
     .calendar-day {
-      padding: 10px 6px;
-      border-radius: var(--radius-md);
+      padding: 6px 2px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       transition: all 0.2s ease;
       color: var(--text-secondary);
       position: relative;
@@ -1155,18 +1148,19 @@ function getHtml() {
       transform: scale(1.2);
     }
     
-    .add-tag-form { 
-      display: flex; 
-      gap: 8px; 
-      margin-top: 12px;
+    .add-tag-form {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      margin-bottom: 12px;
     }
-    
-    .add-tag-form input { 
-      flex: 1; 
-      padding: 10px 14px;
+
+    .add-tag-form input {
+      flex: 1;
+      padding: 8px 10px;
       border: 1px solid var(--glass-border);
       border-radius: var(--radius-sm);
-      font-size: 13px;
+      font-size: 12px;
       background: var(--bg-secondary);
       color: var(--text-primary);
       transition: var(--transition-fast);
