@@ -2917,7 +2917,8 @@ function getHtml() {
     function toggleInputArea() {
       const modal = document.getElementById('inputModal');
       const icon = document.getElementById('toggleInputIcon');
-      if (modal.style.display === 'none' || modal.style.display === '') {
+      const isHidden = modal.style.display === 'none' || modal.style.display === '';
+      if (isHidden) {
         modal.style.display = 'flex';
         document.getElementById('modalMemoInput').focus();
         icon.classList.remove('ph-pencil-simple');
