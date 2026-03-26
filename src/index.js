@@ -1763,7 +1763,23 @@ function getHtml() {
       .fab-btn:active {
         transform: scale(0.95);
       }
-      
+
+      .fab-btn.fab-secondary {
+        width: 48px;
+        height: 48px;
+        font-size: 20px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        color: var(--text-primary);
+        box-shadow: var(--shadow-md);
+      }
+
+      .fab-btn.fab-secondary:hover {
+        background: var(--accent-blue);
+        color: white;
+        border-color: var(--accent-blue);
+      }
+
       /* Touch-friendly buttons */
       .btn, .icon-btn, .memo-action-btn, .calendar-day {
         min-height: 44px;
@@ -2487,7 +2503,7 @@ function getHtml() {
       </div>
       
       <!-- Export Button Area -->
-      <div class="export-area" style="margin-bottom: 16px;">
+      <div class="export-area" id="exportArea" style="display: none;">
         <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="exportData()">
           <i class="ph ph-download-simple"></i> 导出数据
         </button>
@@ -3607,7 +3623,13 @@ function getHtml() {
     });
   </script>
   
-  <!-- Floating Action Button -->
+  <!-- Floating Action Buttons -->
+  <button class="fab-btn fab-secondary" onclick="toggleSearchBar()" title="搜索" style="bottom: 110px;">
+    <i class="ph ph-magnifying-glass"></i>
+  </button>
+  <button class="fab-btn fab-secondary" onclick="exportData()" title="导出数据" style="bottom: 180px;">
+    <i class="ph ph-download-simple"></i>
+  </button>
   <button class="fab-btn" onclick="toggleInputArea()" title="添加备忘录">
     <i class="ph ph-plus"></i>
   </button>
