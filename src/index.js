@@ -2454,40 +2454,39 @@ function getHtml() {
     </div>
   </div>
 
-  <div class="layout">
-    <!-- Floating Panel Toggle -->
-    <button class="float-panel-toggle" onclick="toggleFloatPanel()" title="侧边栏">
-      <i class="ph ph-sidebar" id="floatPanelIcon"></i>
-    </button>
+  <!-- Floating Panel Toggle - Fixed Position -->
+  <button class="float-panel-toggle" onclick="toggleFloatPanel()" title="侧边栏">
+    <i class="ph ph-sidebar" id="floatPanelIcon"></i>
+  </button>
 
-    <!-- Floating Panel (hidden by default) -->
-    <div class="float-panel" id="floatPanel">
-      <div class="float-panel-header">
-        <span><i class="ph ph-gear"></i> 设置</span>
-        <button class="float-panel-close" onclick="toggleFloatPanel()">
-          <i class="ph ph-x"></i>
-        </button>
-      </div>
-      <div class="float-panel-content">
-        <div class="panel-section">
-          <div class="panel-section-title"><i class="ph ph-calendar-blank"></i> 日历</div>
-          <div class="calendar-compact">
-            <div class="calendar-header">
-              <button class="calendar-nav" onclick="changeMonth(-1)"><i class="ph ph-caret-left"></i></button>
-              <span class="calendar-month" id="calendarMonth"></span>
-              <button class="calendar-nav" onclick="changeMonth(1)"><i class="ph ph-caret-right"></i></button>
-            </div>
-            <div class="calendar-grid" id="calendarGrid"></div>
+  <!-- Floating Panel - Fixed Position -->
+  <div class="float-panel" id="floatPanel">
+    <div class="float-panel-header">
+      <span><i class="ph ph-gear"></i> 设置</span>
+      <button class="float-panel-close" onclick="toggleFloatPanel()">
+        <i class="ph ph-x"></i>
+      </button>
+    </div>
+    <div class="float-panel-content">
+      <div class="panel-section">
+        <div class="panel-section-title"><i class="ph ph-calendar-blank"></i> 日历</div>
+        <div class="calendar-compact">
+          <div class="calendar-header">
+            <button class="calendar-nav" onclick="changeMonth(-1)"><i class="ph ph-caret-left"></i></button>
+            <span class="calendar-month" id="calendarMonth"></span>
+            <button class="calendar-nav" onclick="changeMonth(1)"><i class="ph ph-caret-right"></i></button>
           </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
         </div>
-        <div class="panel-section">
-          <div class="panel-section-title"><i class="ph ph-tag"></i> 标签</div>
-          <div class="tags-list" id="tagsList"></div>
-        </div>
+      </div>
+      <div class="panel-section">
+        <div class="panel-section-title"><i class="ph ph-tag"></i> 标签</div>
+        <div class="tags-list" id="tagsList"></div>
       </div>
     </div>
+  </div>
 
-    <div class="main-content">
+  <div class="main-content">
       
       <div id="filterInfo"></div>
       
