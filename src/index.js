@@ -528,13 +528,16 @@ function getHtml() {
       scroll-behavior: smooth;
     }
     
-    body { 
-      font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif; 
+    body {
+      font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-primary);
       min-height: 100vh;
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     
     /* Animated background gradient */
@@ -843,27 +846,33 @@ function getHtml() {
       transform: translateY(0);
     }
     
-    .icon-btn { 
+    .icon-btn {
       background: var(--bg-secondary);
       border: 1px solid var(--glass-border);
-      cursor: pointer; 
+      cursor: pointer;
       padding: 10px;
-      border-radius: var(--radius-sm);
-      transition: var(--transition-fast);
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
       display: flex;
       align-items: center;
       justify-content: center;
       color: var(--text-secondary);
       backdrop-filter: blur(10px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     }
-    
-    .icon-btn:hover { 
+
+    .icon-btn:hover {
       background: var(--accent-blue);
       color: white;
       border-color: var(--accent-blue);
       transform: scale(1.1);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
-    
+
+    .icon-btn:active {
+      transform: scale(0.95);
+    }
+
     .icon-btn i {
       font-size: 18px;
     }
@@ -1442,12 +1451,13 @@ function getHtml() {
     @media (max-width: 480px) {
       .main {
         padding: 16px;
+        padding-bottom: 100px;
       }
-      
+
       .memo {
         padding: 20px;
       }
-      
+
       .memo-actions {
         opacity: 1;
         transform: none;
@@ -1455,13 +1465,58 @@ function getHtml() {
         margin-top: 12px;
         justify-content: flex-end;
       }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      .input-area {
+        padding: 16px;
+      }
+
+      textarea {
+        min-height: 100px;
+        font-size: 15px;
+      }
+
+      .btn {
+        padding: 12px 20px;
+        font-size: 14px;
+      }
+
+      /* Better touch targets on mobile */
+      .icon-btn {
+        min-width: 40px;
+        min-height: 40px;
+      }
+
+      .calendar-day {
+        padding: 12px 4px;
+        font-size: 14px;
+      }
+
+      .search-box {
+        padding: 8px 8px 8px 12px;
+      }
+
+      .toast {
+        min-width: calc(100vw - 40px);
+        max-width: calc(100vw - 40px);
+        right: 20px;
+        left: 20px;
+      }
+
+      .toast-container {
+        right: 10px;
+        left: 10px;
+      }
     }
     
     /* Mobile Bottom Navigation */
     .mobile-nav {
       display: none;
     }
-    
+
     @media (max-width: 768px) {
       .mobile-nav {
         display: flex;
@@ -1474,11 +1529,13 @@ function getHtml() {
         -webkit-backdrop-filter: blur(20px);
         border-top: 1px solid var(--glass-border);
         padding: 12px 20px;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         z-index: 999;
         justify-content: space-around;
         align-items: center;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
       }
-      
+
       .mobile-nav-btn {
         display: flex;
         flex-direction: column;
@@ -1487,28 +1544,29 @@ function getHtml() {
         background: none;
         border: none;
         color: var(--text-secondary);
-        font-size: 12px;
+        font-size: 11px;
+        font-weight: 500;
         cursor: pointer;
         padding: 8px 16px;
         border-radius: var(--radius-md);
         transition: all 0.2s;
         min-width: 60px;
       }
-      
+
       .mobile-nav-btn i {
         font-size: 24px;
       }
-      
+
       .mobile-nav-btn.active {
         color: var(--accent-blue);
-        background: rgba(99, 102, 241, 0.1);
+        background: rgba(99, 102, 241, 0.15);
       }
-      
-      .mobile-nav-btn:hover {
-        color: var(--text-primary);
-        background: var(--bg-tertiary);
+
+      .mobile-nav-btn:active {
+        transform: scale(0.95);
+        background: rgba(99, 102, 241, 0.2);
       }
-      
+
       /* Add padding to main for bottom nav */
       .main {
         padding-bottom: 100px;
