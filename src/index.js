@@ -2487,9 +2487,16 @@ function getHtml() {
   </div>
 
   <div class="main-content">
-      
-      <div id="filterInfo"></div>
-      
+    <div class="main">
+      <div class="main-header">
+        <h1><i class="ph ph-notebook"></i> 备忘录</h1>
+        <div class="main-actions">
+          <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
+            <i class="ph ph-sun"></i>
+          </button>
+        </div>
+      </div>
+
       <!-- Search Bar -->
       <div class="search-area" id="searchArea" style="display: none;">
         <div class="search-box">
@@ -2502,28 +2509,9 @@ function getHtml() {
           </button>
         </div>
       </div>
-      
-      <!-- Export Button Area -->
-      <div class="export-area" id="exportArea" style="display: none;">
-        <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="exportData()">
-          <i class="ph ph-download-simple"></i> 导出数据
-        </button>
-        <button class="btn btn-search" id="searchToggleBtn" onclick="toggleSearchBar()" style="margin-left: 8px;">
-          <i class="ph ph-magnifying-glass"></i> 搜索
-        </button>
-      </div>
-    </div>
-    </div>
-    <div class="main-content">
-    <div class="main">
-      <div class="main-header">
-        <h1><i class="ph ph-notebook"></i> 备忘录</h1>
-        <div class="main-actions">
-          <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
-            <i class="ph ph-sun"></i>
-          </button>
-        </div>
-      </div>
+
+      <div id="filterInfo"></div>
+
       <div class="memos-list" id="memosList"></div>
       <div id="pagination"></div>
       <button class="scroll-top-btn" id="scrollTopBtn" onclick="scrollToTop()" title="返回顶部">
