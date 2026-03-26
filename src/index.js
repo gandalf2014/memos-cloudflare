@@ -525,13 +525,15 @@ function getHtml() {
     }
     
     html {
+      height: 100%;
       scroll-behavior: smooth;
     }
-    
+
     body {
       font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-primary);
       min-height: 100vh;
+      height: 100%;
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
