@@ -562,9 +562,10 @@ function getHtml() {
       50% { opacity: 0.8; }
     }
     
-    .layout { 
-      display: flex; 
+    .layout {
+      display: flex;
       min-height: 100vh;
+      height: 100%;
       position: relative;
       z-index: 1;
     }
@@ -713,6 +714,7 @@ function getHtml() {
     .main-content {
       width: 100%;
       min-height: 100vh;
+      flex: 1;
     }
 
     .main {
