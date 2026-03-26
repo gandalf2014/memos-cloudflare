@@ -2446,7 +2446,6 @@ function getHtml() {
     let selectedDate = null;
     let selectedTag = null;
     let allMemos = [];
-    let refreshInterval = null;
     let isSearching = false;
     let searchMode = false;
     let currentPage = 1;
@@ -2784,14 +2783,9 @@ function getHtml() {
     loadMemos();
     loadTags();
     initTheme();
-    refreshInterval = setInterval(loadMemos, 30000);
 
     window.startEdit = function(id) {
       editingId = id;
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-      }
       // Directly render to show the edit interface
       renderMemos(allMemos);
       
@@ -2821,16 +2815,12 @@ function getHtml() {
         editingId = null;
         loadMemos();
         loadTags();
-        refreshInterval = setInterval(loadMemos, 30000);
       });
     }
 
     window.cancelEdit = function() {
       editingId = null;
       loadMemos();
-      if (!refreshInterval) {
-        refreshInterval = setInterval(loadMemos, 30000);
-      }
     }
 
     function toggleTheme() {
@@ -3183,10 +3173,6 @@ function getHtml() {
         searchArea.style.display = 'block';
         toggleBtn.style.display = 'none';
         document.getElementById('searchInput').focus();
-        if (refreshInterval) {
-          clearInterval(refreshInterval);
-          refreshInterval = null;
-        }
       }
     }
 
@@ -3237,9 +3223,6 @@ function getHtml() {
       document.getElementById('searchInput').value = '';
       document.getElementById("filterInfo").innerHTML = "";
 
-      if (!refreshInterval && !editingId) {
-        refreshInterval = setInterval(loadMemos, 30000);
-      }
       loadMemos();
     }
 
