@@ -1850,10 +1850,14 @@ function getHtml() {
     }
 
     .login-icon {
-      font-size: 64px;
       margin-bottom: 24px;
       display: inline-block;
       animation: iconFloat 3s ease-in-out infinite;
+      color: var(--accent-blue);
+    }
+
+    .login-icon i {
+      font-size: 56px;
     }
 
     @keyframes iconFloat {
@@ -2250,7 +2254,7 @@ function getHtml() {
   <!-- Login Overlay -->
   <div id="loginOverlay" class="login-overlay">
     <div class="login-container">
-      <div class="login-icon">🔒</div>
+      <div class="login-icon"><i class="ph ph-lock-key" style="font-size: 48px;"></i></div>
       <h1 class="login-title">访问受限</h1>
       <p class="login-subtitle">请输入口令继续访问</p>
       <div class="login-input-group">
@@ -2261,7 +2265,7 @@ function getHtml() {
         进入系统
       </button>
       <div id="loginError" class="login-error">口令错误，请重试</div>
-      <p class="login-hint">💡 提示：默认口令为 gandalf</p>
+      <p class="login-hint"><i class="ph ph-lightbulb"></i> 提示：默认口令为 gandalf</p>
     </div>
   </div>
 
