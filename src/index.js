@@ -2004,9 +2004,7 @@ function getHtml() {
     }
 
     .login-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.5s ease;
+      display: none;
     }
 
     .login-container {
