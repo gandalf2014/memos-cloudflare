@@ -568,7 +568,34 @@ function getHtml() {
       position: relative;
       z-index: 1;
     }
-    
+
+    /* Sidebar toggle button */
+    .sidebar-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-toggle:hover {
+      background: var(--accent-blue);
+      color: white;
+      border-color: var(--accent-blue);
+    }
+
+    .sidebar-toggle i {
+      font-size: 16px;
+    }
+
     /* Glassmorphism Sidebar */
     .sidebar {
       width: 280px;
@@ -2265,6 +2292,10 @@ function getHtml() {
 
   <div class="layout">
     <div class="sidebar">
+      <div class="sidebar-toggle" onclick="toggleInputArea()" title="显示/隐藏输入面板">
+        <i class="ph ph-pencil-simple" id="toggleInputIcon"></i>
+        <span>输入面板</span>
+      </div>
       <div class="sidebar-title">
         <i class="ph ph-calendar-blank"></i>
         日历
@@ -2815,6 +2846,20 @@ function getHtml() {
     window.cancelEdit = function() {
       editingId = null;
       loadMemos();
+    }
+
+    function toggleInputArea() {
+      const inputArea = document.querySelector('.input-area');
+      const icon = document.getElementById('toggleInputIcon');
+      if (inputArea.style.display === 'none') {
+        inputArea.style.display = 'block';
+        icon.classList.remove('ph-pencil-simple');
+        icon.classList.add('ph-eye-slash');
+      } else {
+        inputArea.style.display = 'none';
+        icon.classList.remove('ph-eye-slash');
+        icon.classList.add('ph-pencil-simple');
+      }
     }
 
     function toggleTheme() {
