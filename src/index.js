@@ -1754,8 +1754,16 @@ function getHtml() {
     .modal-header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
       margin-bottom: 16px;
+      width: 100%;
+    }
+
+    .modal-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .modal-icon {
@@ -1822,6 +1830,39 @@ function getHtml() {
       background: #dc2626;
       transform: translateY(-2px);
       box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .modal-btn-primary {
+      background: var(--accent-gradient);
+      color: white;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .modal-btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .modal-close i {
+      font-size: 20px;
     }
 
     /* Login Overlay */
@@ -2403,6 +2444,31 @@ function getHtml() {
       </div>
     </div>
   </div>
+
+  <!-- Input Modal -->
+  <div id="inputModal" class="modal-overlay" style="display: none;">
+    <div class="modal-container" style="max-width: 500px;">
+      <div class="modal-header">
+        <div class="modal-header-left">
+          <i class="ph ph-pencil-simple modal-icon" style="color: var(--accent-blue);"></i>
+          <h3 class="modal-title">添加备忘录</h3>
+        </div>
+        <button class="modal-close" onclick="toggleInputArea()">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <textarea id="modalMemoInput" placeholder="写下你的想法..." style="width: 100%; min-height: 150px; border: 2px solid var(--glass-border); border-radius: var(--radius-md); padding: 16px; font-size: 15px; resize: vertical; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; line-height: 1.6;"></textarea>
+        <input type="text" id="modalTagsInput" placeholder="标签（逗号分隔）..." style="width: 100%; margin-top: 12px; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg-secondary); color: var(--text-primary);">
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" onclick="toggleInputArea()">取消</button>
+        <button class="modal-btn modal-btn-primary" onclick="addMemoFromModal()">
+          <i class="ph ph-plus-circle"></i> 添加
+        </button>
+      </div>
+    </div>
+  </div>
   
   <script>
     // Check login status on page load
@@ -2849,17 +2915,68 @@ function getHtml() {
     }
 
     function toggleInputArea() {
-      const inputArea = document.querySelector('.input-area');
+      const modal = document.getElementById('inputModal');
       const icon = document.getElementById('toggleInputIcon');
-      if (inputArea.style.display === 'none') {
-        inputArea.style.display = 'block';
+      if (modal.style.display === 'none' || modal.style.display === '') {
+        modal.style.display = 'flex';
+        document.getElementById('modalMemoInput').focus();
         icon.classList.remove('ph-pencil-simple');
         icon.classList.add('ph-eye-slash');
       } else {
-        inputArea.style.display = 'none';
+        modal.style.display = 'none';
+        // Clear the inputs
+        document.getElementById('modalMemoInput').value = '';
+        document.getElementById('modalTagsInput').value = '';
         icon.classList.remove('ph-eye-slash');
         icon.classList.add('ph-pencil-simple');
       }
+    }
+
+    function addMemoFromModal() {
+      const content = document.getElementById('modalMemoInput').value.trim();
+      const tagsInput = document.getElementById('modalTagsInput').value.trim();
+      const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
+      if (!content) {
+        showToast({
+          title: '提示',
+          message: '请输入内容',
+          type: 'warning'
+        });
+        return;
+      }
+
+      fetch('/api/memos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, tags })
+      })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.memo || data.success) {
+            showToast({
+              title: '成功',
+              message: '备忘录已添加',
+              type: 'success'
+            });
+            toggleInputArea();
+            loadMemos();
+            loadTags();
+          } else {
+            showToast({
+              title: '错误',
+              message: data.error || '添加失败',
+              type: 'error'
+            });
+          }
+        })
+        .catch(function(error) {
+          showToast({
+            title: '错误',
+            message: '添加失败',
+            type: 'error'
+          });
+        });
     }
 
     function toggleTheme() {
