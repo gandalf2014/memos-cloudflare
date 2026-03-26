@@ -596,40 +596,145 @@ function getHtml() {
       font-size: 16px;
     }
 
-    /* Glassmorphism Sidebar */
-    .sidebar {
-      width: 280px;
-      flex-shrink: 0;
-      background: transparent;
-      padding: 16px;
+    /* Floating Panel Toggle */
+    .float-panel-toggle {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: var(--shadow-md);
+      transition: all 0.3s ease;
+      z-index: 1001;
+    }
+
+    .float-panel-toggle:hover {
+      background: var(--accent-blue);
+      color: white;
+      transform: scale(1.1);
+    }
+
+    /* Floating Panel */
+    .float-panel {
+      position: fixed;
+      top: 0;
+      left: -320px;
+      width: 300px;
+      height: 100vh;
+      background: var(--glass-bg);
+      backdrop-filter: blur(30px);
+      border-right: 1px solid var(--glass-border);
+      z-index: 1002;
+      transition: left 0.3s ease;
+      overflow-y: auto;
+      box-shadow: 4px 0 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .float-panel.active {
+      left: 0;
+    }
+
+    .float-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px;
+      border-bottom: 1px solid var(--glass-border);
       position: sticky;
       top: 0;
-      height: 100vh;
-      overflow-y: auto;
-      transition: var(--transition-normal);
+      background: var(--glass-bg);
+      z-index: 1;
     }
-    
-    .sidebar::-webkit-scrollbar {
-      width: 6px;
+
+    .float-panel-header span {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    
-    .sidebar::-webkit-scrollbar-track {
-      background: transparent;
+
+    .float-panel-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
     }
-    
-    .sidebar::-webkit-scrollbar-thumb {
-      background: var(--glass-border);
-      border-radius: 3px;
+
+    .float-panel-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
     }
-    
-    .main { 
-      flex: 1; 
-      padding: 32px;
+
+    .float-panel-content {
+      padding: 16px;
+    }
+
+    .panel-section {
+      margin-bottom: 20px;
+    }
+
+    .panel-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .panel-section-title i {
+      font-size: 16px;
+      color: var(--accent-blue);
+    }
+
+    .calendar-compact {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 12px;
+    }
+
+    .main-content {
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px 32px 100px;
       min-width: 0;
-      max-width: 1400px;
+      max-width: 1200px;
       margin: 0 auto;
     }
-    
+
+    .main-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .main-actions {
+      display: flex;
+      gap: 12px;
+    }
+
     /* Header with gradient text */
     h1 { 
       text-align: center; 
@@ -1621,40 +1726,40 @@ function getHtml() {
           opacity: 1;
         }
       }
-      
-      /* Mobile FAB button */
+
+      /* FAB button */
       .fab-btn {
         display: flex;
         position: fixed;
-        bottom: 100px;
-        right: 20px;
-        width: 56px;
-        height: 56px;
+        bottom: 32px;
+        right: 32px;
+        width: 64px;
+        height: 64px;
         background: var(--accent-gradient);
         border: none;
         border-radius: 50%;
         color: white;
-        font-size: 24px;
+        font-size: 28px;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.5);
         z-index: 998;
         transition: all 0.3s ease;
         animation: fabPulse 2s ease-in-out infinite;
       }
 
       @keyframes fabPulse {
-        0%, 100% { box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
-        50% { box-shadow: 0 4px 25px rgba(99, 102, 241, 0.6); }
+        0%, 100% { box-shadow: 0 8px 32px rgba(99, 102, 241, 0.5); }
+        50% { box-shadow: 0 8px 40px rgba(99, 102, 241, 0.7); }
       }
 
       .fab-btn:hover {
         transform: scale(1.1);
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        box-shadow: 0 12px 40px rgba(99, 102, 241, 0.6);
         animation: none;
       }
-      
+
       .fab-btn:active {
         transform: scale(0.95);
       }
@@ -2332,41 +2437,39 @@ function getHtml() {
   </div>
 
   <div class="layout">
-    <div class="sidebar">
-      <div class="sidebar-toggle" onclick="toggleInputArea()" title="显示/隐藏输入面板">
-        <i class="ph ph-pencil-simple" id="toggleInputIcon"></i>
-        <span>输入面板</span>
+    <!-- Floating Panel Toggle -->
+    <button class="float-panel-toggle" onclick="toggleFloatPanel()" title="侧边栏">
+      <i class="ph ph-sidebar" id="floatPanelIcon"></i>
+    </button>
+
+    <!-- Floating Panel (hidden by default) -->
+    <div class="float-panel" id="floatPanel">
+      <div class="float-panel-header">
+        <span><i class="ph ph-gear"></i> 设置</span>
+        <button class="float-panel-close" onclick="toggleFloatPanel()">
+          <i class="ph ph-x"></i>
+        </button>
       </div>
-      <div class="sidebar-title">
-        <i class="ph ph-calendar-blank"></i>
-        日历
-      </div>
-      <div class="calendar-area">
-        <div class="calendar-header">
-          <button class="calendar-nav" onclick="changeMonth(-1)">
-            <i class="ph ph-caret-left"></i>
-          </button>
-          <span class="calendar-month" id="calendarMonth"></span>
-          <button class="calendar-nav" onclick="changeMonth(1)">
-            <i class="ph ph-caret-right"></i>
-          </button>
+      <div class="float-panel-content">
+        <div class="panel-section">
+          <div class="panel-section-title"><i class="ph ph-calendar-blank"></i> 日历</div>
+          <div class="calendar-compact">
+            <div class="calendar-header">
+              <button class="calendar-nav" onclick="changeMonth(-1)"><i class="ph ph-caret-left"></i></button>
+              <span class="calendar-month" id="calendarMonth"></span>
+              <button class="calendar-nav" onclick="changeMonth(1)"><i class="ph ph-caret-right"></i></button>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </div>
         </div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </div>
-      
-      <div class="tags-area">
-        <div class="tags-title">
-          <i class="ph ph-tag"></i>
-          标签
-        </div>
-        <div class="tags-list" id="tagsList"></div>
-        <div class="add-tag-form">
-          <input type="text" id="newTagInput" placeholder="添加新标签..." maxlength="50">
-          <button onclick="addTag()">
-            <i class="ph ph-plus"></i>
-          </button>
+        <div class="panel-section">
+          <div class="panel-section-title"><i class="ph ph-tag"></i> 标签</div>
+          <div class="tags-list" id="tagsList"></div>
         </div>
       </div>
+    </div>
+
+    <div class="main-content">
       
       <div id="filterInfo"></div>
       
@@ -2393,17 +2496,12 @@ function getHtml() {
         </button>
       </div>
     </div>
+    </div>
+    <div class="main-content">
     <div class="main">
-      <h1><i class="ph ph-notebook"></i> 备忘录</h1>
-      <div class="input-area">
-        <textarea id="memoInput" placeholder="写下你的想法..."></textarea>
-        <div style="margin-top: 12px;">
-          <input type="text" id="tagsInput" placeholder="标签（逗号分隔）..." style="width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg-secondary); color: var(--text-primary); transition: var(--transition-fast);">
-        </div>
-        <div style="display: flex; align-items: center; margin-top: 4px;">
-          <button class="btn" id="addBtn" onclick="addMemo()">
-            <i class="ph ph-plus-circle"></i> 添加
-          </button>
+      <div class="main-header">
+        <h1><i class="ph ph-notebook"></i> 备忘录</h1>
+        <div class="main-actions">
           <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
             <i class="ph ph-sun"></i>
           </button>
@@ -2912,6 +3010,19 @@ function getHtml() {
     window.cancelEdit = function() {
       editingId = null;
       loadMemos();
+    }
+
+    function toggleFloatPanel() {
+      const panel = document.getElementById('floatPanel');
+      const icon = document.getElementById('floatPanelIcon');
+      panel.classList.toggle('active');
+      if (panel.classList.contains('active')) {
+        icon.classList.remove('ph-sidebar');
+        icon.classList.add('ph-x');
+      } else {
+        icon.classList.remove('ph-x');
+        icon.classList.add('ph-sidebar');
+      }
     }
 
     function toggleInputArea() {
@@ -3496,8 +3607,8 @@ function getHtml() {
     });
   </script>
   
-  <!-- Mobile Floating Action Button -->
-  <button class="fab-btn" onclick="showMobileInput()" title="快速添加">
+  <!-- Floating Action Button -->
+  <button class="fab-btn" onclick="toggleInputArea()" title="添加备忘录">
     <i class="ph ph-plus"></i>
   </button>
   
