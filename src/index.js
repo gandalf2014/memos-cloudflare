@@ -979,6 +979,35 @@ function getHtml() {
       break-inside: avoid;
       margin-bottom: 24px;
       page-break-inside: avoid;
+      max-height: 600px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .memo-content {
+      flex: 1;
+      overflow-y: auto;
+      max-height: 500px;
+      padding-right: 8px;
+      margin-right: -8px;
+    }
+
+    /* Custom scrollbar for memo content */
+    .memo-content::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .memo-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .memo-content::-webkit-scrollbar-thumb {
+      background: var(--glass-border);
+      border-radius: 2px;
+    }
+
+    .memo-content::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-blue);
     }
 
     .memo:hover {
@@ -2950,6 +2979,9 @@ function getHtml() {
           viewHtml += tagsHtml;
           viewHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
           viewHtml += '<div class="memo-actions">';
+          viewHtml += '<button class="icon-btn icon-copy" onclick="copyMemo(' + memo.id + ')" title="复制内容">';
+          viewHtml += '<i class="ph ph-copy"></i>';
+          viewHtml += '</button>';
           viewHtml += '<button class="icon-btn icon-edit" onclick="startEdit(' + memo.id + ')" title="编辑">';
           viewHtml += '<i class="ph ph-pencil-simple"></i>';
           viewHtml += '</button>';
@@ -3033,6 +3065,25 @@ function getHtml() {
     // Store deleted memo for undo
     let lastDeletedMemo = null;
     let undoTimeout = null;
+
+    window.copyMemo = function(id) {
+      const memo = allMemos.find(function(m) { return m.id === id; });
+      if (memo && memo.content) {
+        navigator.clipboard.writeText(memo.content).then(function() {
+          showToast({
+            title: '已复制',
+            message: '内容已复制到剪贴板',
+            type: 'success'
+          });
+        }).catch(function() {
+          showToast({
+            title: '复制失败',
+            message: '无法复制内容',
+            type: 'error'
+          });
+        });
+      }
+    };
 
     window.deleteMemo = async function(id) {
       // Find the memo before deleting
