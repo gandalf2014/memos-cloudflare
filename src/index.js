@@ -982,6 +982,7 @@ function getHtml() {
       max-height: 600px;
       display: flex;
       flex-direction: column;
+      cursor: pointer;
     }
 
     .memo-content {
@@ -2974,7 +2975,7 @@ function getHtml() {
             );
           }
           
-          var viewHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's">';
+          var viewHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's" ondblclick="startEdit(' + memo.id + ')">';
           viewHtml += '<div class="memo-content markdown">' + content + '</div>';
           viewHtml += tagsHtml;
           viewHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
