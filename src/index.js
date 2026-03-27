@@ -541,35 +541,118 @@ function getHtml() {
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    
-    /* Animated background gradient */
+
+    /* Animated Particle Background */
     body::before {
       content: '';
       position: fixed;
       top: 0;
       left: 0;
-      right: 0;
-      bottom: 0;
-      background: 
-        radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
-        radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.2) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
       pointer-events: none;
       z-index: 0;
-      animation: gradientShift 20s ease infinite;
+      animation: gradientPulse 8s ease-in-out infinite;
     }
-    
-    @keyframes gradientShift {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.8; }
-    }
-    
-    .layout {
-      display: flex;
-      min-height: 100vh;
+
+    /* Floating Particles */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
       height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(99, 102, 241, 0.6);
+      border-radius: 50%;
+      animation: floatParticle 15s infinite linear;
+    }
+
+    .particle:nth-child(1) { left: 10%; animation-delay: 0s; animation-duration: 20s; }
+    .particle:nth-child(2) { left: 20%; animation-delay: 2s; animation-duration: 18s; }
+    .particle:nth-child(3) { left: 30%; animation-delay: 4s; animation-duration: 22s; }
+    .particle:nth-child(4) { left: 40%; animation-delay: 1s; animation-duration: 19s; }
+    .particle:nth-child(5) { left: 50%; animation-delay: 3s; animation-duration: 21s; }
+    .particle:nth-child(6) { left: 60%; animation-delay: 5s; animation-duration: 17s; }
+    .particle:nth-child(7) { left: 70%; animation-delay: 2.5s; animation-duration: 23s; }
+    .particle:nth-child(8) { left: 80%; animation-delay: 1.5s; animation-duration: 16s; }
+    .particle:nth-child(9) { left: 90%; animation-delay: 4.5s; animation-duration: 24s; }
+    .particle:nth-child(10) { left: 15%; animation-delay: 3.5s; animation-duration: 25s; }
+    .particle:nth-child(11) { left: 25%; animation-delay: 0.5s; animation-duration: 14s; }
+    .particle:nth-child(12) { left: 45%; animation-delay: 6s; animation-duration: 26s; }
+    .particle:nth-child(13) { left: 65%; animation-delay: 2.2s; animation-duration: 28s; }
+    .particle:nth-child(14) { left: 85%; animation-delay: 5.5s; animation-duration: 12s; }
+    .particle:nth-child(15) { left: 5%; animation-delay: 7s; animation-duration: 30s; }
+
+    @keyframes gradientPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.05); }
+    }
+
+    @keyframes floatParticle {
+      0% { transform: translateY(100vh) scale(0); opacity: 0; }
+      10% { opacity: 1; transform: translateY(90vh) scale(1); }
+      90% { opacity: 1; }
+      100% { transform: translateY(-10vh) scale(0.5); opacity: 0; }
+    }
+
+    .main-wrapper {
       position: relative;
       z-index: 1;
+      min-height: 100vh;
+      padding: 24px;
+      padding-bottom: 120px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      padding: 0 8px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header h1 i {
+      -webkit-text-fill-color: var(--accent-blue);
+      font-size: 32px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    /* Glass Cards Grid */
+    .memos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      padding: 8px 0;
     }
 
     /* Sidebar toggle button */
@@ -1731,34 +1814,40 @@ function getHtml() {
         }
       }
 
-      /* FAB button */
+      /* FAB button - Large floating orb */
       .fab-btn {
         display: flex;
         position: fixed;
-        bottom: 32px;
-        right: 32px;
-        width: 64px;
-        height: 64px;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 80px;
         background: var(--accent-gradient);
         border: none;
         border-radius: 50%;
         color: white;
-        font-size: 28px;
+        font-size: 36px;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.5);
+        box-shadow: 0 0 60px rgba(99, 102, 241, 0.6), 0 8px 32px rgba(0, 0, 0, 0.3);
         z-index: 998;
-        transition: all 0.3s ease;
-        animation: fabPulse 2s ease-in-out infinite;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        animation: orbFloat 3s ease-in-out infinite;
       }
 
-      @keyframes fabPulse {
-        0%, 100% { box-shadow: 0 8px 32px rgba(99, 102, 241, 0.5); }
-        50% { box-shadow: 0 8px 40px rgba(99, 102, 241, 0.7); }
+      @keyframes orbFloat {
+        0%, 100% { transform: translateX(-50%) translateY(0); }
+        50% { transform: translateX(-50%) translateY(-10px); }
       }
 
       .fab-btn:hover {
+        transform: translateX(-50%) scale(1.15);
+        box-shadow: 0 0 80px rgba(99, 102, 241, 0.8), 0 12px 40px rgba(0, 0, 0, 0.4);
+      }
+
+      .fab-btn:active {
         transform: scale(1.1);
         box-shadow: 0 12px 40px rgba(99, 102, 241, 0.6);
         animation: none;
@@ -1768,20 +1857,32 @@ function getHtml() {
         transform: scale(0.95);
       }
 
+      /* FAB satellites - smaller buttons around main orb */
       .fab-btn.fab-secondary {
-        width: 48px;
-        height: 48px;
-        font-size: 20px;
+        width: 52px;
+        height: 52px;
+        font-size: 22px;
         background: var(--glass-bg);
+        backdrop-filter: blur(20px);
         border: 1px solid var(--glass-border);
         color: var(--text-primary);
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        animation: satelliteFloat 4s ease-in-out infinite;
+      }
+
+      .fab-btn.fab-secondary:nth-child(1) { animation-delay: 0s; }
+      .fab-btn.fab-secondary:nth-child(2) { animation-delay: 1s; }
+
+      @keyframes satelliteFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
       }
 
       .fab-btn.fab-secondary:hover {
         background: var(--accent-blue);
         color: white;
         border-color: var(--accent-blue);
+        transform: scale(1.1);
       }
 
       /* Touch-friendly buttons */
@@ -2436,6 +2537,25 @@ function getHtml() {
   </style>
 </head>
 <body>
+  <!-- Floating Particles -->
+  <div class="particles">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+
   <!-- Login Overlay -->
   <div id="loginOverlay" class="login-overlay">
     <div class="login-container">
@@ -3613,10 +3733,10 @@ function getHtml() {
   </script>
   
   <!-- Floating Action Buttons -->
-  <button class="fab-btn fab-secondary" onclick="toggleSearchBar()" title="搜索" style="bottom: 110px;">
+  <button class="fab-btn fab-secondary" onclick="toggleSearchBar()" title="搜索" style="bottom: 50px; left: calc(50% - 120px);">
     <i class="ph ph-magnifying-glass"></i>
   </button>
-  <button class="fab-btn fab-secondary" onclick="exportData()" title="导出数据" style="bottom: 180px;">
+  <button class="fab-btn fab-secondary" onclick="exportData()" title="导出数据" style="bottom: 50px; left: calc(50% + 40px);">
     <i class="ph ph-download-simple"></i>
   </button>
   <button class="fab-btn" onclick="toggleInputArea()" title="添加备忘录">
