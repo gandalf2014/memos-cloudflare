@@ -1351,12 +1351,54 @@ function getHtml() {
       font-size: 18px;
     }
     
-    .tags-list { 
-      display: flex; 
-      flex-wrap: wrap; 
+    .tags-list {
+      display: flex;
+      flex-wrap: wrap;
       gap: 8px;
     }
-    
+
+    .sidebar-search {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sidebar-search-input {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: var(--transition-fast);
+    }
+
+    .sidebar-search-input:focus {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 3px var(--accent-alpha);
+    }
+
+    .sidebar-search-btn {
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid var(--glass-border);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-fast);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-search-btn:hover {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+    }
+
     .tag { 
       background: var(--bg-tertiary);
       color: var(--text-secondary);
@@ -2633,6 +2675,18 @@ function getHtml() {
         <div class="panel-section-title"><i class="ph ph-tag"></i> 标签</div>
         <div class="tags-list" id="tagsList"></div>
       </div>
+      <div class="panel-section">
+        <div class="panel-section-title"><i class="ph ph-magnifying-glass"></i> 搜索</div>
+        <div class="sidebar-search">
+          <input type="text" id="sidebarSearchInput" class="sidebar-search-input" placeholder="搜索 memos..." onkeyup="if(event.key==='Enter')sidebarSearch()">
+          <button class="sidebar-search-btn" onclick="sidebarSearch()" title="搜索">
+            <i class="ph ph-magnifying-glass"></i>
+          </button>
+          <button class="sidebar-search-btn" onclick="clearSidebarSearch()" title="清除">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3202,6 +3256,22 @@ function getHtml() {
       }
     }
 
+    function openSidebarWithSearch() {
+      const panel = document.getElementById('floatPanel');
+      if (!panel.classList.contains('active')) {
+        panel.classList.add('active');
+        const icon = document.getElementById('floatPanelIcon');
+        icon.classList.remove('ph-sidebar');
+        icon.classList.add('ph-x');
+      }
+      setTimeout(function() {
+        var searchInput = document.getElementById('sidebarSearchInput');
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }, 300);
+    }
+
     function toggleInputArea() {
       const modal = document.getElementById('inputModal');
       const icon = document.getElementById('toggleInputIcon');
@@ -3662,10 +3732,57 @@ function getHtml() {
       searchMode = false;
       isSearching = false;
       currentSearchKeyword = '';
-      
+
       document.getElementById('searchArea').style.display = 'none';
       document.getElementById('searchToggleBtn').style.display = 'inline-flex';
       document.getElementById('searchInput').value = '';
+      document.getElementById("filterInfo").innerHTML = "";
+
+      loadMemos();
+    }
+
+    function sidebarSearch() {
+      var input = document.getElementById('sidebarSearchInput');
+      var keyword = input.value.trim();
+      if (!keyword) return;
+
+      currentSearchKeyword = keyword.toLowerCase();
+      selectedDate = null;
+      selectedTag = null;
+      currentPage = 1;
+      isSearching = true;
+      searchMode = true;
+
+      showLoading();
+      fetch("/api/memos?search=" + encodeURIComponent(keyword) + "&page=" + currentPage)
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          allMemos = data.memos;
+          renderCalendar();
+          renderMemos(data.memos);
+          renderPagination(data.pagination);
+          document.getElementById("filterInfo").innerHTML = '<div class="filter-info"><span data-type="search">搜索: ' + escapeHtml(keyword) + ' (' + data.pagination.total + ')</span><button class="clear-filter" onclick="clearSidebarSearch()">清除</button></div>';
+        })
+        .catch(function(err) {
+          console.error("Search failed:", err);
+          showToast({
+            title: '搜索失败',
+            message: '搜索时出现错误，请重试',
+            type: 'error',
+            duration: 3000
+          });
+        })
+        .finally(function() {
+          hideLoading();
+        });
+    }
+
+    function clearSidebarSearch() {
+      searchMode = false;
+      isSearching = false;
+      currentSearchKeyword = '';
+
+      document.getElementById('sidebarSearchInput').value = '';
       document.getElementById("filterInfo").innerHTML = "";
 
       loadMemos();
@@ -3783,9 +3900,9 @@ function getHtml() {
       }
     });
   </script>
-  
+
   <!-- Floating Action Buttons -->
-  <button class="fab-btn fab-secondary" onclick="toggleSearchBar()" title="搜索" style="bottom: 50px; left: calc(50% - 120px);">
+  <button class="fab-btn fab-secondary" onclick="openSidebarWithSearch()" title="搜索" style="bottom: 50px; left: calc(50% - 120px);">
     <i class="ph ph-magnifying-glass"></i>
   </button>
   <button class="fab-btn fab-secondary" onclick="exportData()" title="导出数据" style="bottom: 50px; left: calc(50% + 40px);">

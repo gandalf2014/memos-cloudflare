@@ -1,0 +1,511 @@
+// 获取HTML页面
+export function getHtml() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta name="theme-color" content="#0f0f1a">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+${getStyles()}
+  </style>
+</head>
+<body>
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-container">
+      <div class="login-icon">🔒</div>
+      <h1 class="login-title">访问受限</h1>
+      <p class="login-subtitle">请输入口令继续访问 Memos</p>
+      <div class="login-input-group">
+        <input type="password" id="loginInput" class="login-input" placeholder="在此输入口令..." maxlength="50">
+      </div>
+      <button id="loginBtn" class="login-btn" onclick="doLogin()">
+        <i class="ph ph-sign-in"></i> 进入系统
+      </button>
+      <div id="loginError" class="login-error">口令错误，请重试</div>
+      <p class="login-hint">💡 提示：默认口令为 memos123</p>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-title"><i class="ph ph-calendar-blank"></i> 日历</div>
+      <div class="calendar-area">
+        <div class="calendar-header">
+          <button class="calendar-nav" onclick="changeMonth(-1)"><i class="ph ph-caret-left"></i></button>
+          <span class="calendar-month" id="calendarMonth"></span>
+          <button class="calendar-nav" onclick="changeMonth(1)"><i class="ph ph-caret-right"></i></button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </div>
+      
+      <div class="tags-area">
+        <div class="tags-title"><i class="ph ph-tag"></i> 标签</div>
+        <div class="tags-list" id="tagsList"></div>
+        <div class="add-tag-form">
+          <input type="text" id="newTagInput" placeholder="添加新标签..." maxlength="50">
+          <button onclick="addTag()"><i class="ph ph-plus"></i></button>
+        </div>
+      </div>
+      
+      <div id="filterInfo"></div>
+      
+      <div class="search-area" id="searchArea" style="display: none;">
+        <div class="search-box">
+          <input type="text" id="searchInput" class="search-input" placeholder="搜索 memos...">
+          <button class="search-action-btn" onclick="searchMemos()" title="搜索"><i class="ph ph-magnifying-glass"></i></button>
+          <button class="search-action-btn" onclick="clearSearch()" title="清除"><i class="ph ph-x"></i></button>
+        </div>
+      </div>
+
+      <div class="export-area" style="margin-bottom: 16px;">
+        <div style="display: inline-flex; gap: 8px;">
+          <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="exportData('json')">
+            <i class="ph ph-download-simple"></i> 导出 JSON
+          </button>
+          <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="exportData('csv')">
+            <i class="ph ph-file-csv"></i> 导出 CSV
+          </button>
+          <button class="btn" style="background: var(--bg-tertiary); color: var(--text-primary); font-size: 13px; padding: 8px 16px;" onclick="document.getElementById('importFileInput').click()">
+            <i class="ph ph-upload-simple"></i> 导入
+          </button>
+          <input type="file" id="importFileInput" accept=".json,.csv" style="display: none;" onchange="importData(this)">
+        </div>
+        <button class="btn btn-search" id="searchToggleBtn" onclick="toggleSearchBar()" style="margin-left: 8px;">
+          <i class="ph ph-magnifying-glass"></i> 搜索
+        </button>
+      </div>
+    </div>
+    
+    <div class="main">
+      <h1><i class="ph ph-notebook"></i> Memos</h1>
+      <div class="input-area">
+        <textarea id="memoInput" placeholder="Write your thoughts..."></textarea>
+        <div style="margin-top: 12px;">
+          <input type="text" id="tagsInput" placeholder="Tags (comma separated)...">
+        </div>
+        <div style="display: flex; align-items: center; margin-top: 4px;">
+          <button class="btn" id="addBtn" onclick="addMemo()">
+            <i class="ph ph-plus-circle"></i> Add Memo
+          </button>
+          <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
+            <i class="ph ph-sun"></i>
+          </button>
+        </div>
+      </div>
+      <div class="memos-list" id="memosList"></div>
+      <div id="pagination"></div>
+    </div>
+  </div>
+  
+  <div id="toastContainer" class="toast-container"></div>
+  
+  <div id="shortcutHint" class="shortcut-hint" style="opacity: 0; pointer-events: none;">
+    <div><kbd>Ctrl</kbd> + <kbd>/</kbd> 帮助</div>
+    <div><kbd>Ctrl</kbd> + <kbd>N</kbd> 新建</div>
+    <div><kbd>Ctrl</kbd> + <kbd>F</kbd> 搜索</div>
+    <div><kbd>Esc</kbd> 关闭</div>
+  </div>
+  
+  <div id="customModal" class="modal-overlay" style="display: none;">
+    <div class="modal-container">
+      <div class="modal-header">
+        <i class="ph ph-warning-circle modal-icon"></i>
+        <h3 class="modal-title">确认操作</h3>
+      </div>
+      <div class="modal-body">
+        <p class="modal-message" id="modalMessage">确定要执行此操作吗？</p>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-btn modal-btn-secondary" id="modalCancel">取消</button>
+        <button class="modal-btn modal-btn-danger" id="modalConfirm">确认</button>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+${getClientSideScript()}
+  </script>
+  
+  <button class="fab-btn" onclick="showMobileInput()" title="快速添加">
+    <i class="ph ph-plus"></i>
+  </button>
+  
+  <nav class="mobile-nav">
+    <button class="mobile-nav-btn active" onclick="switchMobileTab('memos')">
+      <i class="ph ph-notebook"></i><span>Memos</span>
+    </button>
+    <button class="mobile-nav-btn" onclick="toggleMobileSidebar()">
+      <i class="ph ph-calendar-blank"></i><span>日历</span>
+    </button>
+    <button class="mobile-nav-btn" onclick="toggleMobileSidebar()">
+      <i class="ph ph-tag"></i><span>标签</span>
+    </button>
+    <button class="mobile-nav-btn" onclick="toggleMobileSearch()">
+      <i class="ph ph-magnifying-glass"></i><span>搜索</span>
+    </button>
+  </nav>
+</body>
+</html>`;
+}
+
+function getStyles() {
+  return `/* CSS Variables */
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #16162a;
+  --bg-tertiary: #1e1e3f;
+  --glass-bg: rgba(30, 30, 63, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.05);
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6b6b8a;
+  --accent-blue: #6366f1;
+  --accent-purple: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --accent-glow: rgba(99, 102, 241, 0.4);
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.3);
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.4s ease;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+body.light-theme {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(148, 163, 184, 0.2);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent-blue: #4f46e5;
+  --accent-purple: #7c3aed;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-primary); min-height: 100vh; color: var(--text-primary); line-height: 1.6; }
+
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 300px; flex-shrink: 0; background: var(--glass-bg); backdrop-filter: blur(20px); border-right: 1px solid var(--glass-border); padding: 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.main { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; }
+
+h1 { text-align: center; margin-bottom: 40px; font-size: 2.5rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+.input-area { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: 28px; border-radius: var(--radius-xl); margin-bottom: 32px; position: sticky; top: 20px; z-index: 100; }
+textarea { width: 100%; min-height: 120px; border: 2px solid var(--glass-border); border-radius: var(--radius-md); padding: 16px; font-size: 16px; resize: vertical; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; }
+textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--accent-glow); }
+#tagsInput { width: 100%; padding: 12px 16px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 14px; background: var(--bg-secondary); color: var(--text-primary); margin-top: 12px; }
+
+.btn { background: var(--accent-gradient); color: white; border: none; padding: 14px 28px; border-radius: var(--radius-md); cursor: pointer; font-size: 15px; font-weight: 500; margin-top: 16px; transition: var(--transition-fast); display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4); }
+.btn-search { background: var(--bg-tertiary); color: var(--text-primary); margin-left: 12px; }
+.btn-search:hover { background: var(--accent-blue); }
+.btn-theme { background: var(--bg-tertiary); margin-left: 12px; }
+.btn-theme:hover { background: var(--accent-purple); }
+
+.memos-list { column-count: 3; column-gap: 24px; }
+.memo { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); transition: var(--transition-normal); position: relative; overflow: hidden; break-inside: avoid; margin-bottom: 24px; }
+.memo:hover { transform: translateY(-4px); box-shadow: var(--shadow-glow); border-color: var(--accent-blue); }
+.memo-content { font-size: 15px; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; margin-top: 16px; }
+.memo-time { font-size: 13px; color: var(--text-muted); margin-top: 16px; display: flex; align-items: center; gap: 6px; }
+.memo-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; opacity: 0; transform: translateY(-10px); transition: var(--transition-fast); }
+.memo:hover .memo-actions { opacity: 1; transform: translateY(0); }
+.icon-btn { background: var(--bg-secondary); border: 1px solid var(--glass-border); cursor: pointer; padding: 10px; border-radius: var(--radius-sm); transition: var(--transition-fast); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
+.icon-btn:hover { background: var(--accent-blue); color: white; border-color: var(--accent-blue); transform: scale(1.1); }
+
+.calendar-area { margin-bottom: 32px; background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); padding: 20px; }
+.calendar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.calendar-nav { background: var(--bg-tertiary); border: 1px solid var(--glass-border); padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--text-secondary); transition: var(--transition-fast); }
+.calendar-nav:hover { background: var(--accent-blue); color: white; }
+.calendar-month { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.calendar-day-header { font-size: 12px; color: var(--text-muted); padding: 8px 0; font-weight: 500; }
+.calendar-day { padding: 10px 6px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; transition: var(--transition-fast); color: var(--text-secondary); position: relative; }
+.calendar-day:hover { background: var(--glass-highlight); color: var(--text-primary); }
+.calendar-day.selected { background: var(--accent-gradient); color: white; font-weight: 500; }
+.calendar-day.has-memo { color: var(--accent-blue); font-weight: 500; }
+.calendar-day.has-memo::after { content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; background: var(--accent-blue); border-radius: 50%; }
+.calendar-day.other-month { color: var(--text-muted); opacity: 0.5; }
+.calendar-day.today { border: 2px solid var(--accent-blue); color: var(--accent-blue); font-weight: 600; }
+
+.sidebar-title { font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 8px; }
+.tags-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { background: var(--bg-tertiary); color: var(--text-secondary); padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: var(--transition-fast); border: 1px solid var(--glass-border); display: inline-flex; align-items: center; gap: 6px; }
+.tag:hover { background: var(--accent-blue); color: white; border-color: var(--accent-blue); transform: translateY(-1px); }
+.tag.active { background: var(--accent-gradient); color: white; border-color: transparent; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); }
+.tag-delete { opacity: 0.6; font-size: 16px; margin-left: 4px; }
+.tag-delete:hover { opacity: 1; transform: scale(1.2); }
+
+.add-tag-form { display: flex; gap: 8px; margin-top: 12px; }
+.add-tag-form input { flex: 1; padding: 10px 14px; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 13px; background: var(--bg-secondary); color: var(--text-primary); }
+.add-tag-form button { padding: 10px 16px; background: var(--success); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; }
+
+.pagination { display: flex; justify-content: center; gap: 8px; margin-top: 40px; padding: 24px; }
+.pagination button { padding: 10px 16px; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--text-secondary); border-radius: var(--radius-sm); cursor: pointer; transition: var(--transition-fast); font-weight: 500; min-width: 40px; }
+.pagination button:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--accent-blue); }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination button.active { background: var(--accent-gradient); color: white; }
+
+.search-area { margin-bottom: 16px; }
+.search-box { display: flex; align-items: center; background: var(--bg-secondary); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 4px 4px 4px 12px; }
+.search-box:focus-within { border-color: var(--accent-blue); box-shadow: 0 0 0 2px var(--accent-glow); }
+.search-input { border: none; background: transparent; flex: 1; padding: 8px 0; color: var(--text-primary); outline: none; font-size: 14px; }
+.search-action-btn { background: transparent; border: none; color: var(--text-muted); padding: 8px; cursor: pointer; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.search-action-btn:hover { background: var(--bg-tertiary); color: var(--accent-blue); }
+
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; transition: opacity 0.3s ease; }
+.modal-overlay.active { opacity: 1; }
+.modal-container { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); padding: 28px; max-width: 420px; width: 90%; box-shadow: var(--shadow-md); transform: scale(0.9) translateY(20px); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.modal-overlay.active .modal-container { transform: scale(1) translateY(0); }
+.modal-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.modal-icon { font-size: 28px; color: var(--warning); }
+.modal-title { font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.modal-message { font-size: 15px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+.modal-footer { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+.modal-btn { padding: 12px 24px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; border: none; }
+.modal-btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--glass-border); }
+.modal-btn-danger { background: var(--error); color: white; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+
+.login-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-primary); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.login-overlay.hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+.login-container { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); padding: 48px; max-width: 420px; width: 100%; text-align: center; box-shadow: var(--shadow-md), 0 0 60px rgba(99, 102, 241, 0.2); animation: loginAppear 0.6s ease-out; }
+@keyframes loginAppear { from { opacity: 0; transform: scale(0.9) translateY(30px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.login-icon { font-size: 64px; margin-bottom: 24px; animation: iconFloat 3s ease-in-out infinite; }
+@keyframes iconFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.login-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.login-subtitle { color: var(--text-secondary); margin-bottom: 32px; font-size: 15px; }
+.login-input-group { margin-bottom: 16px; }
+.login-input { width: 100%; padding: 16px 20px; font-size: 16px; background: var(--bg-secondary); border: 2px solid var(--glass-border); border-radius: var(--radius-md); color: var(--text-primary); transition: all 0.3s ease; text-align: center; letter-spacing: 2px; }
+.login-input:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
+.login-btn { width: 100%; padding: 16px; font-size: 16px; font-weight: 600; background: var(--accent-gradient); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
+.login-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.5); }
+.login-error { color: var(--error); font-size: 14px; margin-top: 16px; display: none; animation: shake 0.5s ease; }
+.login-error.show { display: block; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
+.login-hint { color: var(--text-muted); font-size: 13px; margin-top: 24px; }
+
+.toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; }
+.toast { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 16px 20px; min-width: 280px; max-width: 400px; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 12px; animation: toastSlideIn 0.3s ease; }
+@keyframes toastSlideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.toast-icon { font-size: 24px; flex-shrink: 0; }
+.toast-title { font-weight: 600; font-size: 14px; color: var(--text-primary); }
+.toast-message { font-size: 13px; color: var(--text-secondary); }
+.toast-action { background: var(--accent-gradient); color: white; border: none; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; font-weight: 500; margin-left: 12px; }
+
+.shortcut-hint { position: fixed; bottom: 20px; left: 20px; background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 12px; color: var(--text-muted); z-index: 100; transition: opacity 0.3s ease; }
+.shortcut-hint kbd { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-family: monospace; border: 1px solid var(--glass-border); margin: 0 2px; }
+
+.fab-btn { display: none; }
+.mobile-nav { display: none; }
+
+@media (max-width: 1200px) { .memos-list { column-count: 2; } }
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: relative; border-right: none; border-bottom: 1px solid var(--glass-border); padding: 20px; }
+  .main { padding: 20px; }
+  h1 { font-size: 1.8rem; margin-bottom: 24px; }
+  .memos-list { column-count: 1; }
+  .input-area { position: relative; top: 0; padding: 20px; }
+  
+  .mobile-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--glass-bg); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); padding: 12px 20px; z-index: 999; justify-content: space-around; align-items: center; }
+  .mobile-nav-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-size: 12px; cursor: pointer; padding: 8px 16px; border-radius: var(--radius-md); transition: all 0.2s; min-width: 60px; }
+  .mobile-nav-btn i { font-size: 24px; }
+  .mobile-nav-btn.active { color: var(--accent-blue); background: rgba(99, 102, 241, 0.1); }
+  
+  .fab-btn { display: flex; position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; background: var(--accent-gradient); border: none; border-radius: 50%; color: white; font-size: 24px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); z-index: 998; }
+  
+  .main { padding-bottom: 100px; }
+
+  /* Markdown Styles */
+  .memo-content strong { font-weight: 700; color: var(--text-primary); }
+  .memo-content em { font-style: italic; color: var(--text-secondary); }
+  .memo-content del { text-decoration: line-through; color: var(--text-muted); }
+  .memo-content a { color: var(--accent-blue); text-decoration: none; }
+  .memo-content a:hover { text-decoration: underline; }
+  .memo-content .md-image { max-width: 100%; height: auto; border-radius: var(--radius-sm); margin: 8px 0; }
+  .memo-content pre { background: var(--bg-tertiary); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 16px; overflow-x: auto; margin: 12px 0; }
+  .memo-content code.inline { background: var(--bg-tertiary); padding: 2px 8px; border-radius: 4px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.9em; color: var(--accent-purple); }
+  .memo-content pre code { display: block; font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.5; color: var(--text-primary); white-space: pre; }
+  .memo-content blockquote { border-left: 3px solid var(--accent-blue); padding-left: 16px; margin: 12px 0; color: var(--text-secondary); font-style: italic; background: var(--glass-highlight); padding: 12px 16px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+  .memo-content h1, .memo-content h2, .memo-content h3 { margin: 16px 0 8px; font-weight: 600; color: var(--text-primary); }
+  .memo-content h1 { font-size: 1.5em; }
+  .memo-content h2 { font-size: 1.3em; }
+  .memo-content h3 { font-size: 1.1em; }
+  .memo-content ul, .memo-content ol { padding-left: 24px; margin: 8px 0; }
+  .memo-content li { margin: 4px 0; }
+  .memo-content hr { border: none; border-top: 1px solid var(--glass-border); margin: 16px 0; }
+  .memo-content .highlight { background: var(--warning); color: #000; padding: 2px 4px; border-radius: 2px; }
+
+  body.light-theme .memo-content pre { background: #f1f5f9; }
+  body.light-theme .memo-content code.inline { background: #e2e8f0; }
+  body.light-theme .memo-content blockquote { background: #f1f5f9; }
+`;
+
+function getClientSideScript() {
+  // 轻量级 Markdown 解析器
+  function parseMarkdown(text) {
+    if (!text) return '';
+    let html = text
+      // 转义 HTML 特殊字符（防止 XSS）
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      // 代码块 (```code```)
+      .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+      // 行内代码 (`code`)
+      .replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+      // 加粗 (**text** 或 __text__)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+      // 斜体 (*text* 或 _text_)
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/_([^_]+)_/g, '<em>$1</em>')
+      // 删除线 (~~text~~)
+      .replace(/~~([^~]+)~~/g, '<del>$1</del>')
+      // 链接 ([text](url))
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+      // 图片 ![alt](url)
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-image" loading="lazy">')
+      // 引用 (> text)
+      .replace(/^&gt;\s*(.+)$/gm, '<blockquote>$1</blockquote>')
+      // 无序列表 (- item 或 * item)
+      .replace(/^[\-\*]\s+(.+)$/gm, '<li>$1</li>')
+      // 有序列表 (1. item)
+      .replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>')
+      // 标题 (### text)
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      // 水平线 (---)
+      .replace(/^---$/gm, '<hr>')
+      // 换行处理
+      .replace(/\n/g, '<br>');
+
+    // 合并连续的 <li> 为 <ul>
+    html = html.replace(/(<li>.*<\/li>)(<br>)?/g, (match, li) => {
+      if (li.includes('<ul>') || li.includes('</ul>')) return match;
+      return li;
+    });
+
+    // 简单合并：将连续的 li 包装在 ul 中
+    const lines = html.split('<br>');
+    let inList = false;
+    let result = [];
+    for (let line of lines) {
+      if (line.startsWith('<li>')) {
+        if (!inList) {
+          result.push('<ul>');
+          inList = true;
+        }
+        result.push(line);
+      } else {
+        if (inList) {
+          result.push('</ul>');
+          inList = false;
+        }
+        result.push(line);
+      }
+    }
+    if (inList) result.push('</ul>');
+    html = result.join('');
+
+    // 合并连续的 blockquote
+    html = html.replace(/<\/blockquote><br><blockquote>/g, '<br>');
+
+    return html;
+  }
+
+  // 检查文本是否包含 Markdown 语法
+  function hasMarkdown(text) {
+    if (!text) return false;
+    const mdPatterns = [
+      /```[\s\S]*?```/,   // 代码块
+      /`[^`]+`/,          // 行内代码
+      /\*\*[^*]+\*\*/,    // 加粗
+      /__[^_]+__/,       // 加粗
+      /\*[^*]+\*/,       // 斜体
+      /_[^_]+_/,         // 斜体
+      /~~[^~]+~~/,       // 删除线
+      /\[[^\]]+\]\([^)]+\)/, // 链接
+      /!\[.*\]\(.*\)/,   // 图片
+      /^&gt;\s*/m,       // 引用
+      /^[\-\*]\s+/m,     // 无序列表
+      /^\d+\.\s+/m,      // 有序列表
+      /^#{1,3}\s+/m,     // 标题
+      /^---$/m           // 水平线
+    ];
+    return mdPatterns.some(pattern => pattern.test(text));
+  }
+
+  return `var editingId=null,currentMonth=new Date(),selectedDate=null,selectedTag=null,allMemos=[],refreshInterval=null,currentPage=1,currentSearchKeyword="",lastDeletedMemo=null,undoTimeout=null,modalResolve=null;
+var monthNames=["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+var dayNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+(function(){if("true"===sessionStorage.getItem("memos_logged_in"))document.getElementById("loginOverlay").classList.add("hidden")})();
+window.doLogin=function(){var e=document.getElementById("loginInput"),t=document.getElementById("loginBtn"),n=document.getElementById("loginError"),o=e.value.trim();if(!o)return n.textContent="请输入口令",n.classList.add("show"),void e.focus();t.disabled=!0,t.innerHTML='<span style="display:inline-block;width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 1s linear infinite;margin-right:8px;"></span> 验证中...';fetch("/api/auth/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:o})}).then(function(e){return e.json()}).then(function(i){i.success?(sessionStorage.setItem("memos_logged_in","true"),sessionStorage.setItem("memos_token",i.token),document.getElementById("loginOverlay").classList.add("hidden"),e.value=""):(n.textContent=i.error||"口令错误",n.classList.add("show"),e.value="",e.focus()),t.disabled=!1,t.innerHTML='<i class="ph ph-sign-in"></i> 进入系统'}).catch(function(){n.textContent="验证失败，请重试",n.classList.add("show"),t.disabled=!1,t.innerHTML='<i class="ph ph-sign-in"></i> 进入系统'})};
+document.getElementById("loginInput").addEventListener("keypress",function(e){"Enter"===e.key&&window.doLogin()});
+function renderCalendar(){var e=currentMonth.getFullYear(),t=currentMonth.getMonth();document.getElementById("calendarMonth").textContent=e+"年 "+monthNames[t];var n={};allMemos.forEach(function(o){var i=new Date(o.createdAt);i.getFullYear()===e&&i.getMonth()===t&&(n[i.getDate()]=!0)});var o=new Date(e,t,1),i=new Date(e,t+1,0),a=o.getDay(),d=i.getDate(),s=new Date,l="";for(var r=0;r<dayNames.length;r++)l+='<div class="calendar-day-header">'+dayNames[r]+"</div>";var c=new Date(e,t,0).getDate();for(var u=a-1;u>=0;u--)l+='<div class="calendar-day other-month">'+(c-u)+"</div>";for(var m=1;m<=d;m++){var g=e===s.getFullYear()&&t===s.getMonth()&&m===s.getDate(),p=selectedDate&&e===selectedDate.getFullYear()&&t===selectedDate.getMonth()&&m===selectedDate.getDate(),h=n[m],v="calendar-day";g&&(v+=" today"),p&&(v+=" selected"),h&&(v+=" has-memo"),l+='<div class="'+v+'" onclick="selectDate('+e+", "+t+", "+m+')">'+m+"</div>"}var f=a+d,y=42-f;for(var b=1;b<=y;b++)l+='<div class="calendar-day other-month">'+b+"</div>";document.getElementById("calendarGrid").innerHTML=l}
+window.changeMonth=function(e){currentMonth.setMonth(currentMonth.getMonth()+e),renderCalendar()};
+window.selectDate=function(e,t,n){selectedDate=new Date(e,t,n),selectedTag=null,currentPage=1,renderCalendar(),filterByDate(selectedDate)};
+function filterByDate(e){var t=e.getFullYear(),n=String(e.getMonth()+1).padStart(2,"0"),o=String(e.getDate()).padStart(2,"0"),i=t+"-"+n+"-"+o;showLoading(),fetch("/api/memos?date="+i+"&page="+currentPage).then(function(e){return e.json()}).then(function(t){renderMemos(t.memos),renderPagination(t.pagination);var n=e.toLocaleDateString("zh-CN",{year:"numeric",month:"long",day:"numeric"});document.getElementById("filterInfo").innerHTML='<div class="filter-info"><span>'+n+'</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>'})}
+window.clearFilter=function(){selectedDate=null,selectedTag=null,currentPage=1,currentSearchKeyword="",renderCalendar(),document.getElementById("filterInfo").innerHTML="",loadMemos()};
+function showLoading(){document.getElementById("memosList").innerHTML='<div class="loading"><div class="loading-spinner"></div></div>'}
+function showEmpty(){document.getElementById("memosList").innerHTML='<div class="empty-state"><div class="empty-state-icon"><i class="ph ph-notebook" style="font-size: 64px;"></i></div><div class="empty-state-text">暂无 memo</div></div>'}
+function loadMemos(){var e="/api/memos?page="+currentPage;if(selectedDate){var t=selectedDate.getFullYear(),n=String(selectedDate.getMonth()+1).padStart(2,"0"),o=String(selectedDate.getDate()).padStart(2,"0");e="/api/memos?date="+t+"-"+n+"-"+o+"&page="+currentPage}else selectedTag&&(e="/api/memos?tag="+encodeURIComponent(selectedTag)+"&page="+currentPage);fetch(e).then(function(e){return e.json()}).then(function(e){allMemos=e.memos||[],renderCalendar(),editingId||renderMemos(e.memos),renderPagination(e.pagination)}).catch(function(){document.getElementById("memosList").innerHTML='<div class="empty-state"><div class="empty-state-text" style="color: var(--error);">加载失败</div></div>'})}
+function renderMemos(e){var t=document.getElementById("memosList");if(!e||0===e.length)return showEmpty(),void 0;var n="";e.forEach(function(e){var o=e.tags&&e.tags.length>0?'<div class="memo-tags">'+e.tags.map(function(e){var t="object"==typeof e?e.name:e;return'<span class="tag" onclick="event.stopPropagation();filterByTag('+"'"+t+"'"+')">'+t+"</span>"}).join("")+"</div>":"";if(editingId===e.id){var i=e.tags?e.tags.map(function(e){return"object"==typeof e?e.name:e}).join(", "):"";n+='<div class="memo" id="memo-'+e.id+'"><textarea id="edit-'+e.id+'" style="width:100%;min-height:200px;border:2px solid var(--accent-blue);border-radius:var(--radius-md);padding:12px;font-size:15px;background:var(--bg-secondary);color:var(--text-primary);">'+escapeHtml(e.content)+'</textarea><input type="text" id="edit-tags-'+e.id+'" value="'+escapeHtml(i)+'" placeholder="Tags..." style="width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-secondary);color:var(--text-primary);"><div class="memo-time"><i class="ph ph-clock"></i> '+new Date(e.createdAt).toLocaleString("zh-CN")+'</div><div class="memo-actions"><button class="icon-btn" onclick="saveEdit('+e.id+')" title="Save"><i class="ph ph-check"></i></button><button class="icon-btn" onclick="cancelEdit()" title="Cancel"><i class="ph ph-x"></i></button></div></div>'}else{var a=hasMarkdown(e.content)?parseMarkdown(e.content):escapeHtml(e.content);currentSearchKeyword&&(a=a.replace(new RegExp("("+escapeHtml(currentSearchKeyword)+")","gi"),'<span class="highlight">$1</span>')),n+='<div class="memo" id="memo-'+e.id+'"><div class="memo-content">'+a+"</div>"+o+'<div class="memo-time"><i class="ph ph-clock"></i> '+new Date(e.createdAt).toLocaleString("zh-CN")+'</div><div class="memo-actions"><button class="icon-btn" onclick="startEdit('+e.id+')" title="Edit"><i class="ph ph-pencil-simple"></i></button><button class="icon-btn" onclick="deleteMemo('+e.id+')" title="Delete"><i class="ph ph-trash"></i></button></div></div>'}}),t.innerHTML=n}
+function renderPagination(e){if(!e||e.totalPages<=1)return document.getElementById("pagination").innerHTML="",void 0;var t='<div class="pagination">';t+='<button onclick="goToPage('+(e.page-1)+')" '+(1===e.page?"disabled":"")+'><i class="ph ph-caret-left"></i></button>';for(var n=1;n<=e.totalPages;n++)1===n||n===e.totalPages||n>=e.page-2&&n<=e.page+2?t+='<button onclick="goToPage('+n+')" '+(n===e.page?'class="active"':"")+">"+n+"</button>":(n===e.page-3||n===e.page+3)&&(t+='<span style="padding: 8px;color:var(--text-muted);">...</span>');t+='<button onclick="goToPage('+(e.page+1)+')" '+(e.page===e.totalPages?"disabled":"")+'><i class="ph ph-caret-right"></i></button>',t+="</div>",t+='<div class="pagination-info">第 '+e.page+" 页，共 "+e.totalPages+" 页 ("+e.total+" 条)</div>",document.getElementById("pagination").innerHTML=t}
+window.goToPage=function(e){if(!(e<1))currentPage=e,showLoading(),loadMemos()};
+function escapeHtml(e){var t=document.createElement("div");return t.textContent=e,t.innerHTML}
+window.addMemo=async function(){var e=document.getElementById("memoInput"),t=document.getElementById("tagsInput"),n=e.value.trim();if(!n)return await showModal("请输入 Memo 内容","提示",!1),void 0;var o=t.value.trim(),i=o?o.split(",").map(function(e){return e.trim()}).filter(function(e){return e}):[];fetch("/api/memos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:n,tags:i})}).then(function(t){if(!t.ok)throw new Error("Failed");e.value="",t.value="",loadMemos(),loadTags()}).catch(async function(){await showModal("添加失败，请重试","错误",!0)})};
+window.deleteMemo=async function(e){var t=allMemos.find(function(t){return t.id===e});if(await showModal("确定要删除这条 memo 吗？","删除确认",!0))fetch("/api/memos/"+e,{method:"DELETE"}).then(function(){lastDeletedMemo=t,loadMemos(),loadTags(),showToast({title:"已删除",message:"Memo 已成功删除",type:"success",action:{text:"撤销"},duration:5e3}),undoTimeout&&clearTimeout(undoTimeout),undoTimeout=setTimeout(function(){lastDeletedMemo=null},5e3)})};
+window.undoDelete=async function(){if(lastDeletedMemo)fetch("/api/memos",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:lastDeletedMemo.content,tags:lastDeletedMemo.tags?lastDeletedMemo.tags.map(function(e){return"object"==typeof e?e.name:e}):[]})}).then(function(){showToast({title:"已撤销",message:"Memo 已恢复",type:"success",duration:3e3}),lastDeletedMemo=null,undoTimeout&&clearTimeout(undoTimeout),loadMemos(),loadTags()})};
+window.startEdit=function(e){editingId=e,refreshInterval&&(clearInterval(refreshInterval),refreshInterval=null),renderMemos(allMemos),setTimeout(function(){var t=document.getElementById("edit-"+e);t&&(t.focus(),t.setSelectionRange(t.value.length,t.value.length))},50)};
+window.saveEdit=function(e){var t=document.getElementById("edit-"+e),n=document.getElementById("edit-tags-"+e),o=t.value.trim();if(!o)return alert("内容不能为空");var i=n?n.value.trim():"",a=i?i.split(",").map(function(e){return e.trim()}).filter(function(e){return e}):[];fetch("/api/memos/"+e,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({content:o,tags:a})}).then(function(){editingId=null,loadMemos(),loadTags(),refreshInterval=setInterval(loadMemos,3e4)})};
+window.cancelEdit=function(){editingId=null,loadMemos(),refreshInterval||(refreshInterval=setInterval(loadMemos,3e4))};
+function loadTags(){fetch("/api/tags").then(function(e){return e.json()}).then(function(e){var t=document.getElementById("tagsList");if(!e.tags||0===e.tags.length)return t.innerHTML='<span style="color:var(--text-muted);font-size:13px;">暂无标签</span>',void 0;var n="";e.tags.forEach(function(e){var t=selectedTag===e.name;n+='<span class="tag'+(t?" active":"")+'" onclick="filterByTag('+"'"+e.name+"'"+')">'+e.name+'<span class="tag-delete" onclick="event.stopPropagation();deleteTag('+e.id+')">×</span></span>'}),t.innerHTML=n}).catch(function(){document.getElementById("tagsList").innerHTML='<span style="color:var(--error);font-size:12px;">加载失败</span>'})}
+window.addTag=async function(){var e=document.getElementById("newTagInput"),t=e.value.trim();if(!t)return await showModal("请输入标签名称","提示",!1),void 0;fetch("/api/tags",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:t})}).then(function(t){t.ok?(e.value="",loadTags()):t.json().then(async function(e){await showModal(e.error||"创建标签失败","错误",!0)})})};
+window.deleteTag=async function(e){if(await showModal("确定要删除这个标签吗？","删除确认",!0))fetch("/api/tags/"+e,{method:"DELETE"}).then(function(){loadTags()})};
+window.filterByTag=function(e){selectedTag=e,selectedDate=null,currentPage=1,currentSearchKeyword="",showLoading(),fetch("/api/memos?tag="+encodeURIComponent(e)+"&page="+currentPage).then(function(e){return e.json()}).then(function(t){allMemos=t.memos,renderCalendar(),renderMemos(t.memos),renderPagination(t.pagination),loadTags(),document.getElementById("filterInfo").innerHTML='<div class="filter-info"><span>'+e+" ("+t.pagination.total+')</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>'})};
+document.getElementById("newTagInput").addEventListener("keypress",function(e){"Enter"===e.key&&addTag()});
+window.toggleTheme=function(){var e=document.body,t=document.getElementById("themeToggle"),n=t.querySelector("i");e.classList.contains("light-theme")?(e.classList.remove("light-theme"),n.classList.remove("ph-moon"),n.classList.add("ph-sun"),localStorage.setItem("theme","dark")):(e.classList.add("light-theme"),n.classList.remove("ph-sun"),n.classList.add("ph-moon"),localStorage.setItem("theme","light"))};
+function initTheme(){if("light"===localStorage.getItem("theme")){document.body.classList.add("light-theme");var e=document.getElementById("themeToggle"),t=e.querySelector("i");t.classList.remove("ph-sun"),t.classList.add("ph-moon")}}
+window.toggleSearchBar=function(){var e=document.getElementById("searchArea"),t=document.getElementById("searchToggleBtn"),n="none"!==e.style.display;n?(e.style.display="none",t.style.display="inline-flex",clearSearch()):(e.style.display="block",t.style.display="none",document.getElementById("searchInput").focus(),refreshInterval&&(clearInterval(refreshInterval),refreshInterval=null))};
+window.searchMemos=function(){var e=document.getElementById("searchInput"),t=e.value.trim();if(!t)return;currentSearchKeyword=t.toLowerCase(),selectedDate=null,selectedTag=null,currentPage=1,showLoading(),fetch("/api/memos?search="+encodeURIComponent(t)+"&page="+currentPage).then(function(e){return e.json()}).then(function(e){allMemos=e.memos,renderCalendar(),renderMemos(e.memos),renderPagination(e.pagination),document.getElementById("filterInfo").innerHTML='<div class="filter-info"><span>搜索: '+t+" ("+e.pagination.total+')</span><button class="clear-filter" onclick="clearSearch()">清除</button></div>'})};
+window.clearSearch=function(){currentSearchKeyword="",document.getElementById("searchArea").style.display="none",document.getElementById("searchToggleBtn").style.display="inline-flex",document.getElementById("searchInput").value="",document.getElementById("filterInfo").innerHTML="",refreshInterval||editingId||(refreshInterval=setInterval(loadMemos,3e4)),loadMemos()};
+window.exportData=function(){fetch("/api/memos?limit=10000").then(function(e){return e.json()}).then(function(e){var t={memos:e.memos,exportDate:(new Date).toISOString(),version:"1.0"},n=new Blob([JSON.stringify(t,null,2)],{type:"application/json"}),o=URL.createObjectURL(n),i=document.createElement("a");i.href=o,i.download="memos-backup-"+(new Date).toISOString().split("T")[0]+".json",document.body.appendChild(i),i.click(),document.body.removeChild(i),URL.revokeObjectURL(o),showToast({title:"导出成功",message:"已导出 "+e.memos.length+" 条 memo",type:"success",duration:3e3})}).catch(function(){showToast({title:"导出失败",message:"导出数据时出现错误",type:"error",duration:3e3})})};
+function showToast(e){var t=document.getElementById("toastContainer"),n=document.createElement("div");n.className="toast "+(e.type||"info"),n.style.cssText="background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 12px; padding: 16px 20px; min-width: 280px; max-width: 400px; box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 12px; animation: toastSlideIn 0.3s ease;";var o={success:"ph-check-circle",error:"ph-x-circle",warning:"ph-warning",info:"ph-info"}[e.type]||"ph-info",i="";e.action&&(i='<button onclick="undoDelete()" style="background: var(--accent-gradient); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 500; margin-left: 12px;">'+e.action.text+"</button>"),n.innerHTML='<i class="ph '+o+'" style="font-size: 24px;"></i><div style="flex: 1;"><div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">'+e.title+'</div><div style="font-size: 13px; color: var(--text-secondary);">'+e.message+"</div></div>"+i,t.appendChild(n),setTimeout(function(){n.style.opacity="0",n.style.transform="translateX(100%)",setTimeout(function(){n.remove()},300)},e.duration||3e3)}
+window.showModal=function(e,t,n){void 0===t&&(t="确认操作"),void 0===n&&(n=!0);return new Promise(function(o){modalResolve=o;var i=document.getElementById("customModal"),a=document.getElementById("modalMessage"),d=document.querySelector(".modal-title"),s=document.querySelector(".modal-icon"),l=document.getElementById("modalConfirm");a.textContent=e,d.textContent=t,n?(s.className="ph ph-warning-circle modal-icon",s.style.color="var(--warning)",l.className="modal-btn modal-btn-danger"):(s.className="ph ph-question modal-icon",s.style.color="var(--accent-blue)",l.className="modal-btn",l.style.cssText="background: var(--accent-gradient); color: white;"),i.style.display="flex",setTimeout(function(){i.classList.add("active")},10)})};
+function hideModal(){var e=document.getElementById("customModal");e.classList.remove("active"),setTimeout(function(){e.style.display="none"},300)}
+document.getElementById("modalCancel").addEventListener("click",function(){hideModal(),modalResolve&&modalResolve(!1)});
+document.getElementById("modalConfirm").addEventListener("click",function(){hideModal(),modalResolve&&modalResolve(!0)});
+document.getElementById("customModal").addEventListener("click",function(e){"customModal"===e.target.id&&(hideModal(),modalResolve&&modalResolve(!1))});
+window.showMobileInput=function(){var e=document.getElementById("memoInput");e.scrollIntoView({behavior:"smooth",block:"center"}),e.focus()};
+window.toggleMobileSidebar=function(){document.querySelector(".sidebar").classList.toggle("show")};
+window.switchMobileTab=function(e){document.querySelectorAll(".mobile-nav-btn").forEach(function(e){e.classList.remove("active")}),event.currentTarget.classList.add("active"),"memos"===e&&document.querySelector(".sidebar").classList.remove("show")};
+window.toggleMobileSearch=function(){toggleSearchBar(),"none"!==document.getElementById("searchArea").style.display&&document.getElementById("searchInput").focus()};
+document.addEventListener("click",function(e){var t=document.querySelector(".sidebar"),n=document.querySelector(".mobile-nav");window.innerWidth<=768&&t.classList.contains("show")&&!t.contains(e.target)&&!n.contains(e.target)&&t.classList.remove("show")});
+document.addEventListener("keydown",function(e){(e.ctrlKey||e.metaKey)&&(document.getElementById("shortcutHint").style.opacity="1"),(e.ctrlKey||e.metaKey)&&"n"===e.key&&(e.preventDefault(),document.getElementById("memoInput").focus()),(e.ctrlKey||e.metaKey)&&"f"===e.key&&(e.preventDefault(),toggleSearchBar()),"Escape"===e.key&&("none"!==document.getElementById("searchArea").style.display?clearSearch():editingId&&cancelEdit())});
+document.addEventListener("keyup",function(e){"Control"!==e.key&&"Meta"!==e.key||setTimeout(function(){document.getElementById("shortcutHint").style.opacity="0"},1e3)});
+document.getElementById("searchInput").addEventListener("keypress",function(e){"Enter"===e.key&&searchMemos()});
+// Register Service Worker for PWA
+if("serviceWorker"in navigator){navigator.serviceWorker.register("/sw.js").then(function(e){console.log("Service Worker registered:",e)}).catch(function(e){console.log("Service Worker registration failed:",e)})}
+renderCalendar();loadMemos();loadTags();initTheme();refreshInterval=setInterval(loadMemos,3e4);`;
+}
