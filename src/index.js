@@ -3008,13 +3008,26 @@ function getHtml() {
         showEmpty();
         return;
       }
+      // 随机边框颜色
+      const borderColors = [
+        '#6366f1', // 蓝色
+        '#8b5cf6', // 紫色
+        '#22c55e', // 绿色
+        '#f59e0b', // 橙色
+        '#ef4444', // 红色
+        '#06b6d4', // 青色
+        '#ec4899', // 粉色
+        '#84cc16', // 黄绿色
+      ];
+
       let html = "";
       memos.forEach(function(memo, index) {
+        const borderColor = borderColors[Math.floor(Math.random() * borderColors.length)];
         const tagsHtml = memo.tags && memo.tags.length > 0 ? '<div class="memo-tags">' + memo.tags.map(function(t) { var tagName = typeof t === 'object' ? t.name : t; return '<span class="tag" onclick="filterByTag(' + String.fromCharCode(39) + escapeHtml(tagName) + String.fromCharCode(39) + ')">' + escapeHtml(tagName) + '</span>'; }).join('') + '</div>' : '';
-        
+
         if (editingId === memo.id) {
           const currentTags = memo.tags ? memo.tags.map(function(t) { return typeof t === 'object' ? t.name : t; }).join(', ') : '';
-          var editHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's">';
+          var editHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's; border-left: 4px solid ' + borderColor + ';">';
           editHtml += '<textarea id="edit-' + memo.id + '" style="width:100%;min-height:200px;border:2px solid var(--accent-blue);border-radius:var(--radius-md);padding:12px;font-size:15px;resize:vertical;background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;">' + escapeHtml(memo.content) + '</textarea>';
           editHtml += '<input type="text" id="edit-tags-' + memo.id + '" value="' + escapeHtml(currentTags) + '" placeholder="标签（逗号分隔）..." style="width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--glass-border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-secondary);color:var(--text-primary);">';
           editHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
@@ -3030,7 +3043,7 @@ function getHtml() {
         } else {
           // Use Markdown parser for content
           let content = parseMarkdown(memo.content);
-          
+
           // Highlight search keyword if in search mode
           if (currentSearchKeyword) {
             content = content.replace(
@@ -3038,8 +3051,8 @@ function getHtml() {
               '<span class="highlight">$1</span>'
             );
           }
-          
-          var viewHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's" ondblclick="startEdit(' + memo.id + ')">';
+
+          var viewHtml = '<div class="memo" id="memo-' + memo.id + '" style="animation-delay: ' + (index * 0.05) + 's; border-left: 4px solid ' + borderColor + ';" ondblclick="startEdit(' + memo.id + ')">';
           viewHtml += '<div class="memo-content markdown">' + content + '</div>';
           viewHtml += tagsHtml;
           viewHtml += '<div class="memo-time"><i class="ph ph-clock"></i> ' + new Date(memo.createdAt).toLocaleString("en-US") + '</div>';
