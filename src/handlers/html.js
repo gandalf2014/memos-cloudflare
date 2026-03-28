@@ -220,7 +220,7 @@ body.light-theme {
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-primary); min-height: 100vh; color: var(--text-primary); line-height: 1.6; }
+body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-primary); background-image: linear-gradient(45deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px); background-size: 40px 40px; min-height: 100vh; color: var(--text-primary); line-height: 1.6; }
 
 .layout { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; flex-shrink: 0; background: var(--glass-bg); backdrop-filter: blur(20px); border-right: 1px solid var(--glass-border); padding: 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
