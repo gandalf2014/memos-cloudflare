@@ -6,12 +6,13 @@ export function getHtml() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta name="theme-color" content="#0f0f1a">
+  <meta name="theme-color" content="#0a0a12">
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
 ${getStyles()}
@@ -187,6 +188,18 @@ function getStyles() {
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
+
+  /* HUD 辅助色 */
+  --hud-warning: #fbbf24;
+  --hud-data: #22d3ee;
+  --hud-success: #34d399;
+
+  /* HUD 动画变量 */
+  --hud-transition-fast: 0.15s ease-out;
+  --hud-transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --hud-transition-slow: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --hud-animation-scan: 8s linear infinite;
+  --hud-animation-pulse: 2s ease-in-out infinite;
 }
 
 body.light-theme {
@@ -200,6 +213,9 @@ body.light-theme {
   --text-muted: #94a3b8;
   --accent-blue: #4f46e5;
   --accent-purple: #7c3aed;
+  --hud-warning: #f59e0b;
+  --hud-data: #06b6d4;
+  --hud-success: #10b981;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
