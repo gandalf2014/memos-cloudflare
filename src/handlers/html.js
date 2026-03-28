@@ -19,6 +19,8 @@ ${getStyles()}
   </style>
 </head>
 <body>
+  <!-- HUD 扫描线 -->
+  <div class="scan-line"></div>
   <div id="loginOverlay" class="login-overlay">
     <div class="login-container">
       <div class="login-icon">🔒</div>
@@ -370,6 +372,28 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
   body.light-theme .memo-content pre { background: #f1f5f9; }
   body.light-theme .memo-content code.inline { background: #e2e8f0; }
   body.light-theme .memo-content blockquote { background: #f1f5f9; }
+
+  /* ===== HUD 扫描线 ===== */
+  .scan-line {
+    position: fixed;
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+    animation: scan 8s linear infinite;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  @keyframes scan {
+    0% { top: -2px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  body.light-theme .scan-line {
+    background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.3), transparent);
+  }
 `;
 
 function getClientSideScript() {
