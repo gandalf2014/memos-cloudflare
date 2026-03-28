@@ -2695,8 +2695,18 @@ function getHtml() {
       <div class="main-header">
         <h1><i class="ph ph-notebook"></i> 备忘录</h1>
         <div class="main-actions">
-          <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
-            <i class="ph ph-sun"></i>
+          <button onclick="openSidebarWithSearch()" title="搜索" style="background: #6366f1; width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3); transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          </button>
+          <button onclick="exportData()" title="导出数据" style="background: #8b5cf6; width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          </button>
+          <button onclick="toggleInputArea()" title="添加备忘录" style="background: #22c55e; width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+          </button>
+          <button id="themeToggle" onclick="toggleTheme()" style="background: linear-gradient(135deg, #f59e0b, #f97316); width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: white; border: none; cursor: pointer; transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="sunIcon"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0L4.59 18.01a.996.996 0 000 1.41c.39.39 1.03.39 1.41 0l1.05-1.06z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="moonIcon" style="display: none;"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
           </button>
         </div>
       </div>
@@ -3278,16 +3288,23 @@ function getHtml() {
       const isHidden = modal.style.display === 'none' || modal.style.display === '';
       if (isHidden) {
         modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
         document.getElementById('modalMemoInput').focus();
-        icon.classList.remove('ph-pencil-simple');
-        icon.classList.add('ph-eye-slash');
+        if (icon) {
+          icon.classList.remove('ph-pencil-simple');
+          icon.classList.add('ph-eye-slash');
+        }
       } else {
-        modal.style.display = 'none';
-        // Clear the inputs
-        document.getElementById('modalMemoInput').value = '';
-        document.getElementById('modalTagsInput').value = '';
-        icon.classList.remove('ph-eye-slash');
-        icon.classList.add('ph-pencil-simple');
+        modal.classList.remove('active');
+        setTimeout(() => {
+          modal.style.display = 'none';
+          document.getElementById('modalMemoInput').value = '';
+          document.getElementById('modalTagsInput').value = '';
+        }, 300);
+        if (icon) {
+          icon.classList.remove('ph-eye-slash');
+          icon.classList.add('ph-pencil-simple');
+        }
       }
     }
 
@@ -3340,20 +3357,18 @@ function getHtml() {
 
     function toggleTheme() {
       const body = document.body;
-      const btn = document.getElementById('themeToggle');
-      const icon = btn.querySelector('i');
-      
+      const sunIcon = document.getElementById('sunIcon');
+      const moonIcon = document.getElementById('moonIcon');
+
       if (body.classList.contains('light-theme')) {
-        // 鍒囨崲鍒版繁鑹蹭富棰?
         body.classList.remove('light-theme');
-        icon.classList.remove('ph-moon');
-        icon.classList.add('ph-sun');
+        sunIcon.style.display = 'block';
+        moonIcon.style.display = 'none';
         localStorage.setItem('theme', 'dark');
       } else {
-        // 鍒囨崲鍒版祬鑹蹭富棰?
         body.classList.add('light-theme');
-        icon.classList.remove('ph-sun');
-        icon.classList.add('ph-moon');
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
         localStorage.setItem('theme', 'light');
       }
     }
@@ -3468,13 +3483,13 @@ function getHtml() {
     // 初始化主题
     function initTheme() {
       const savedTheme = localStorage.getItem('theme');
-      const btn = document.getElementById('themeToggle');
-      const icon = btn.querySelector('i');
-      
+      const sunIcon = document.getElementById('sunIcon');
+      const moonIcon = document.getElementById('moonIcon');
+
       if (savedTheme === 'light') {
         document.body.classList.add('light-theme');
-        icon.classList.remove('ph-sun');
-        icon.classList.add('ph-moon');
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
       }
     }
 
@@ -3901,16 +3916,7 @@ function getHtml() {
     });
   </script>
 
-  <!-- Floating Action Buttons -->
-  <button class="fab-btn fab-secondary" onclick="openSidebarWithSearch()" title="搜索" style="bottom: 50px; left: calc(50% - 120px);">
-    <i class="ph ph-magnifying-glass"></i>
-  </button>
-  <button class="fab-btn fab-secondary" onclick="exportData()" title="导出数据" style="bottom: 50px; left: calc(50% + 40px);">
-    <i class="ph ph-download-simple"></i>
-  </button>
-  <button class="fab-btn" onclick="toggleInputArea()" title="添加备忘录">
-    <i class="ph ph-plus"></i>
-  </button>
+
   
   <!-- Mobile Bottom Navigation -->
   <nav class="mobile-nav">

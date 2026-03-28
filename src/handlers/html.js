@@ -78,27 +78,33 @@ ${getStyles()}
           </button>
           <input type="file" id="importFileInput" accept=".json,.csv" style="display: none;" onchange="importData(this)">
         </div>
-        <button class="btn btn-search" id="searchToggleBtn" onclick="toggleSearchBar()" style="margin-left: 8px;">
+        <button id="searchToggleBtn" onclick="toggleSearchBar()" style="background: #1e1e3f; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin-left: 8px;">
           <i class="ph ph-magnifying-glass"></i> 搜索
         </button>
       </div>
     </div>
     
     <div class="main">
-      <h1><i class="ph ph-notebook"></i> Memos</h1>
+      <div class="main-header">
+        <h1><i class="ph ph-notebook"></i> Memos</h1>
+        <div class="main-actions">
+          <button onclick="showMobileInput()" title="快速新建" style="background: #22c55e; width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; color: white; border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+          </button>
+          <button id="themeToggle" onclick="toggleTheme()" style="background: #1e1e3f; width: 44px; height: 44px; min-width: 44px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: white; border: none; cursor: pointer; transition: transform 0.2s ease; flex-shrink: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="sunIcon"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0a.996.996 0 000-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0L4.59 18.01a.996.996 0 000 1.41c.39.39 1.03.39 1.41 0l1.05-1.06z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" id="moonIcon" style="display: none;"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+          </button>
+        </div>
+      </div>
       <div class="input-area">
         <textarea id="memoInput" placeholder="Write your thoughts..."></textarea>
         <div style="margin-top: 12px;">
           <input type="text" id="tagsInput" placeholder="Tags (comma separated)...">
         </div>
-        <div style="display: flex; align-items: center; margin-top: 4px;">
-          <button class="btn" id="addBtn" onclick="addMemo()">
-            <i class="ph ph-plus-circle"></i> Add Memo
-          </button>
-          <button class="btn btn-theme" id="themeToggle" onclick="toggleTheme()">
-            <i class="ph ph-sun"></i>
-          </button>
-        </div>
+        <button class="btn" id="addBtn" onclick="addMemo()">
+          <i class="ph ph-plus-circle"></i> Add Memo
+        </button>
       </div>
       <div class="memos-list" id="memosList"></div>
       <div id="pagination"></div>
@@ -133,11 +139,7 @@ ${getStyles()}
   <script>
 ${getClientSideScript()}
   </script>
-  
-  <button class="fab-btn" onclick="showMobileInput()" title="快速添加">
-    <i class="ph ph-plus"></i>
-  </button>
-  
+
   <nav class="mobile-nav">
     <button class="mobile-nav-btn active" onclick="switchMobileTab('memos')">
       <i class="ph ph-notebook"></i><span>Memos</span>
@@ -207,8 +209,9 @@ body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-pr
 .layout { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; flex-shrink: 0; background: var(--glass-bg); backdrop-filter: blur(20px); border-right: 1px solid var(--glass-border); padding: 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .main { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; }
-
-h1 { text-align: center; margin-bottom: 40px; font-size: 2.5rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.main-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; }
+.main-actions { display: flex; align-items: center; gap: 12px; }
+h1 { text-align: center; font-size: 2.5rem; font-weight: 700; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
 
 .input-area { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: 28px; border-radius: var(--radius-xl); margin-bottom: 32px; position: sticky; top: 20px; z-index: 100; }
 textarea { width: 100%; min-height: 120px; border: 2px solid var(--glass-border); border-radius: var(--radius-md); padding: 16px; font-size: 16px; resize: vertical; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; }
@@ -217,12 +220,7 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
 
 .btn { background: var(--accent-gradient); color: white; border: none; padding: 14px 28px; border-radius: var(--radius-md); cursor: pointer; font-size: 15px; font-weight: 500; margin-top: 16px; transition: var(--transition-fast); display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4); }
-.btn-search { background: var(--bg-tertiary); color: var(--text-primary); margin-left: 12px; }
-.btn-search:hover { background: var(--accent-blue); }
-.btn-theme { background: var(--bg-tertiary); margin-left: 12px; }
-.btn-theme:hover { background: var(--accent-purple); }
 
-.memos-list { column-count: 3; column-gap: 24px; }
 .memo { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); padding: 24px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); transition: var(--transition-normal); position: relative; overflow: hidden; break-inside: avoid; margin-bottom: 24px; }
 .memo:hover { transform: translateY(-4px); box-shadow: var(--shadow-glow); border-color: var(--accent-blue); }
 .memo-content { font-size: 15px; line-height: 1.7; color: var(--text-primary); white-space: pre-wrap; word-break: break-word; margin-top: 16px; }
@@ -314,7 +312,6 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
 .shortcut-hint { position: fixed; bottom: 20px; left: 20px; background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 12px; color: var(--text-muted); z-index: 100; transition: opacity 0.3s ease; }
 .shortcut-hint kbd { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-family: monospace; border: 1px solid var(--glass-border); margin: 0 2px; }
 
-.fab-btn { display: none; }
 .mobile-nav { display: none; }
 
 @media (max-width: 1200px) { .memos-list { column-count: 2; } }
@@ -330,9 +327,8 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
   .mobile-nav-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-size: 12px; cursor: pointer; padding: 8px 16px; border-radius: var(--radius-md); transition: all 0.2s; min-width: 60px; }
   .mobile-nav-btn i { font-size: 24px; }
   .mobile-nav-btn.active { color: var(--accent-blue); background: rgba(99, 102, 241, 0.1); }
-  
-  .fab-btn { display: flex; position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; background: var(--accent-gradient); border: none; border-radius: 50%; color: white; font-size: 24px; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); z-index: 998; }
-  
+
+  .main-actions button:first-child { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; font-size: 24px; z-index: 998; }
   .main { padding-bottom: 100px; }
 
   /* Markdown Styles */
@@ -485,8 +481,8 @@ window.addTag=async function(){var e=document.getElementById("newTagInput"),t=e.
 window.deleteTag=async function(e){if(await showModal("确定要删除这个标签吗？","删除确认",!0))fetch("/api/tags/"+e,{method:"DELETE"}).then(function(){loadTags()})};
 window.filterByTag=function(e){selectedTag=e,selectedDate=null,currentPage=1,currentSearchKeyword="",showLoading(),fetch("/api/memos?tag="+encodeURIComponent(e)+"&page="+currentPage).then(function(e){return e.json()}).then(function(t){allMemos=t.memos,renderCalendar(),renderMemos(t.memos),renderPagination(t.pagination),loadTags(),document.getElementById("filterInfo").innerHTML='<div class="filter-info"><span>'+e+" ("+t.pagination.total+')</span><button class="clear-filter" onclick="clearFilter()">清除</button></div>'})};
 document.getElementById("newTagInput").addEventListener("keypress",function(e){"Enter"===e.key&&addTag()});
-window.toggleTheme=function(){var e=document.body,t=document.getElementById("themeToggle"),n=t.querySelector("i");e.classList.contains("light-theme")?(e.classList.remove("light-theme"),n.classList.remove("ph-moon"),n.classList.add("ph-sun"),localStorage.setItem("theme","dark")):(e.classList.add("light-theme"),n.classList.remove("ph-sun"),n.classList.add("ph-moon"),localStorage.setItem("theme","light"))};
-function initTheme(){if("light"===localStorage.getItem("theme")){document.body.classList.add("light-theme");var e=document.getElementById("themeToggle"),t=e.querySelector("i");t.classList.remove("ph-sun"),t.classList.add("ph-moon")}}
+window.toggleTheme=function(){var e=document.body,t=document.getElementById("sunIcon"),n=document.getElementById("moonIcon");e.classList.contains("light-theme")?(e.classList.remove("light-theme"),t.style.display="block",n.style.display="none",localStorage.setItem("theme","dark")):(e.classList.add("light-theme"),t.style.display="none",n.style.display="block",localStorage.setItem("theme","light"))};
+function initTheme(){if("light"===localStorage.getItem("theme")){document.body.classList.add("light-theme");var e=document.getElementById("sunIcon"),t=document.getElementById("moonIcon");e.style.display="none",t.style.display="block"}}
 window.toggleSearchBar=function(){var e=document.getElementById("searchArea"),t=document.getElementById("searchToggleBtn"),n="none"!==e.style.display;n?(e.style.display="none",t.style.display="inline-flex",clearSearch()):(e.style.display="block",t.style.display="none",document.getElementById("searchInput").focus(),refreshInterval&&(clearInterval(refreshInterval),refreshInterval=null))};
 window.searchMemos=function(){var e=document.getElementById("searchInput"),t=e.value.trim();if(!t)return;currentSearchKeyword=t.toLowerCase(),selectedDate=null,selectedTag=null,currentPage=1,showLoading(),fetch("/api/memos?search="+encodeURIComponent(t)+"&page="+currentPage).then(function(e){return e.json()}).then(function(e){allMemos=e.memos,renderCalendar(),renderMemos(e.memos),renderPagination(e.pagination),document.getElementById("filterInfo").innerHTML='<div class="filter-info"><span>搜索: '+t+" ("+e.pagination.total+')</span><button class="clear-filter" onclick="clearSearch()">清除</button></div>'})};
 window.clearSearch=function(){currentSearchKeyword="",document.getElementById("searchArea").style.display="none",document.getElementById("searchToggleBtn").style.display="inline-flex",document.getElementById("searchInput").value="",document.getElementById("filterInfo").innerHTML="",refreshInterval||editingId||(refreshInterval=setInterval(loadMemos,3e4)),loadMemos()};
