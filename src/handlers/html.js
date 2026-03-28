@@ -382,17 +382,23 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
     animation: scan 8s linear infinite;
     pointer-events: none;
     z-index: 9999;
+    will-change: transform, opacity;
   }
 
   @keyframes scan {
-    0% { top: -2px; opacity: 0; }
+    0% { transform: translateY(-2px); opacity: 0; }
     10% { opacity: 1; }
     90% { opacity: 1; }
-    100% { top: 100%; opacity: 0; }
+    100% { transform: translateY(100vh); opacity: 0; }
   }
 
   body.light-theme .scan-line {
     background: linear-gradient(90deg, transparent, rgba(79, 70, 229, 0.3), transparent);
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .scan-line { display: none; }
   }
 `;
 
