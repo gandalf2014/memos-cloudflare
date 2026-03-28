@@ -234,7 +234,7 @@ body.light-theme {
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-primary); background-image: linear-gradient(45deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px); background-size: 40px 40px; min-height: 100vh; color: var(--text-primary); line-height: 1.6; }
+body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background: var(--bg-primary); background-image: linear-gradient(45deg, rgba(99, 102, 241, 0.08) 1px, transparent 1px); background-size: 40px 40px; min-height: 100vh; color: var(--text-primary); line-height: 1.6; }
 
 .layout { display: flex; min-height: 100vh; }
 .sidebar { width: 300px; flex-shrink: 0; background: var(--glass-bg); backdrop-filter: blur(20px); border-right: 1px solid var(--glass-border); padding: 24px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
@@ -388,13 +388,14 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
   /* ===== HUD 扫描线 ===== */
   .scan-line {
     position: fixed;
-    height: 2px;
+    height: 3px;
     width: 100%;
-    background: linear-gradient(90deg, transparent, var(--accent-glow), transparent);
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 245, 0.6), transparent);
     animation: scan 8s linear infinite;
     pointer-events: none;
     z-index: 9999;
     will-change: transform, opacity;
+    box-shadow: 0 0 10px rgba(0, 255, 245, 0.4);
   }
 
   @keyframes scan {
@@ -416,10 +417,10 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
   /* ===== HUD 角落装饰 ===== */
   .corner-decoration {
     position: fixed;
-    width: 60px;
-    height: 60px;
+    width: 80px;
+    height: 80px;
     border: 2px solid var(--accent-blue);
-    opacity: 0.3;
+    opacity: 0.5;
     pointer-events: none;
   }
   .corner-decoration.top-left { top: 20px; left: 20px; border-right: none; border-bottom: none; }
@@ -533,6 +534,7 @@ textarea:focus { outline: none; border-color: var(--accent-blue); box-shadow: 0 
     .scan-line, .status-light { animation: none !important; }
   }
 `;
+}
 
 function getClientSideScript() {
   // 轻量级 Markdown 解析器
