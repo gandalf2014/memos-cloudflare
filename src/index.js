@@ -42,6 +42,46 @@ function validateTagName(name) {
   return trimmed;
 }
 
+// 批量处理标签 - 插入并返回ID映射
+async function processTagsBatch(tagNames, env, now) {
+  if (!tagNames || tagNames.length === 0) return {};
+
+  const names = tagNames.map(t => t.trim()).filter(t => t);
+  if (names.length === 0) return {};
+
+  // 批量插入标签
+  const insertQueries = names.map(name =>
+    env.DB.prepare(`INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`).bind(name, now)
+  );
+  await env.DB.batch(insertQueries);
+
+  // 批量获取标签ID
+  const placeholders = names.map(() => '?').join(',');
+  const { results } = await env.DB.prepare(
+    `SELECT name, id FROM tags WHERE name IN (${placeholders})`
+  ).bind(...names).all();
+
+  const tagIdMap = {};
+  for (const tag of results) {
+    tagIdMap[tag.name] = tag.id;
+  }
+  return tagIdMap;
+}
+
+// 批量关联 memo 和 tags
+async function linkMemoTagsBatch(memoId, tagNames, tagIdMap, env) {
+  const linkQueries = tagNames
+    .filter(name => tagIdMap[name])
+    .map(name =>
+      env.DB.prepare(`INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`)
+        .bind(memoId, tagIdMap[name])
+    );
+
+  if (linkQueries.length > 0) {
+    await env.DB.batch(linkQueries);
+  }
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -228,26 +268,11 @@ export default {
           ).all();
           const memoId = idResult[0].id;
 
-          // Handle tags
-          if (body.tags && Array.isArray(body.tags)) {
-            for (const tagName of body.tags) {
-              const trimmedTag = validateTagName(tagName);
-              // Insert tag if not exists
-              await env.DB.prepare(
-                `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
-              ).bind(trimmedTag, now).run();
-
-              // Get tag id
-              const { results: tagResult } = await env.DB.prepare(
-                `SELECT id FROM tags WHERE name = ?`
-              ).bind(trimmedTag).all();
-
-              if (tagResult.length > 0) {
-                await env.DB.prepare(
-                  `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
-                ).bind(memoId, tagResult[0].id).run();
-              }
-            }
+          // Handle tags - 批量处理优化
+          if (body.tags && Array.isArray(body.tags) && body.tags.length > 0) {
+            const tagNames = body.tags.map(t => t.trim()).filter(t => t);
+            const tagIdMap = await processTagsBatch(tagNames, env, now);
+            await linkMemoTagsBatch(memoId, tagNames, tagIdMap, env);
           }
 
           const { results } = await env.DB.prepare(
@@ -297,28 +322,15 @@ export default {
         ).bind(content, now, id).run();
 
         if (success) {
-          // Update tags if provided
-          if (body.tags && Array.isArray(body.tags)) {
+          // Update tags if provided - 批量处理优化
+          if (body.tags && Array.isArray(body.tags) && body.tags.length > 0) {
             // Remove existing tags
             await env.DB.prepare(`DELETE FROM memo_tags WHERE memo_id = ?`).bind(id).run();
 
-            // Add new tags
-            for (const tagName of body.tags) {
-              const trimmedTag = validateTagName(tagName);
-              await env.DB.prepare(
-                `INSERT OR IGNORE INTO tags (name, created_at) VALUES (?, ?)`
-              ).bind(trimmedTag, now).run();
-
-              const { results: tagResult } = await env.DB.prepare(
-                `SELECT id FROM tags WHERE name = ?`
-              ).bind(trimmedTag).all();
-
-              if (tagResult.length > 0) {
-                await env.DB.prepare(
-                  `INSERT OR IGNORE INTO memo_tags (memo_id, tag_id) VALUES (?, ?)`
-                ).bind(id, tagResult[0].id).run();
-              }
-            }
+            // Add new tags - 批量处理
+            const tagNames = body.tags.map(t => t.trim()).filter(t => t);
+            const tagIdMap = await processTagsBatch(tagNames, env, now);
+            await linkMemoTagsBatch(id, tagNames, tagIdMap, env);
           }
 
           const { results } = await env.DB.prepare(
@@ -1857,9 +1869,9 @@ function getHtml() {
         padding-bottom: 100px;
       }
       
-      /* Mobile sidebar toggle */
+      /* Mobile sidebar - default show */
       .sidebar {
-        display: none;
+        display: block;
         position: fixed;
         top: 0;
         left: 0;
@@ -1870,9 +1882,9 @@ function getHtml() {
         overflow-y: auto;
         animation: slideUp 0.3s ease-out;
       }
-      
-      .sidebar.show {
-        display: block;
+
+      .sidebar.hide {
+        display: none;
       }
       
       @keyframes slideUp {
@@ -3395,7 +3407,7 @@ function getHtml() {
 
     function toggleMobileSidebar() {
       const sidebar = document.querySelector('.sidebar');
-      sidebar.classList.toggle('show');
+      sidebar.classList.toggle('hide');
     }
 
     function switchMobileTab(tab) {
@@ -3404,10 +3416,10 @@ function getHtml() {
         btn.classList.remove('active');
       });
       event.currentTarget.classList.add('active');
-      
+
       // Hide sidebar when switching to memos
       if (tab === 'memos') {
-        document.querySelector('.sidebar').classList.remove('show');
+        document.querySelector('.sidebar').classList.add('hide');
       }
     }
 
@@ -3424,9 +3436,9 @@ function getHtml() {
       const mobileNav = document.querySelector('.mobile-nav');
       const isClickInsideSidebar = sidebar.contains(e.target);
       const isClickInsideNav = mobileNav.contains(e.target);
-      
-      if (window.innerWidth <= 768 && sidebar.classList.contains('show') && !isClickInsideSidebar && !isClickInsideNav) {
-        sidebar.classList.remove('show');
+
+      if (window.innerWidth <= 768 && !sidebar.classList.contains('hide') && !isClickInsideSidebar && !isClickInsideNav) {
+        sidebar.classList.add('hide');
       }
     });
 
