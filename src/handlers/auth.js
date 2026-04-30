@@ -1,5 +1,5 @@
-import { createResponse, createErrorResponse } from '../utils/response.js';
-import { validateId, validateTagName } from '../utils/validation.js';
+import { createResponse, createErrorResponse, getCorsHeaders } from '../utils/response.js';
+import { generateToken, createSession, verifyPassword as checkPassword } from '../utils/auth.js';
 
 // Simple hash function (for demo - in production use bcrypt or similar)
 function simpleHash(password) {
@@ -12,9 +12,12 @@ function simpleHash(password) {
   return hash.toString(16);
 }
 
-// POST /api/auth/verify - 验证密码
+// POST /api/auth/verify - 验证密码并设置 cookie
 export async function verifyPassword(request, env) {
   try {
+    const origin = request.headers.get('Origin') || '*';
+    const corsHeaders = getCorsHeaders(origin);
+
     let body;
     try {
       body = await request.json();
@@ -25,18 +28,56 @@ export async function verifyPassword(request, env) {
     const correctPassword = env.AUTH_PASSWORD || 'memos123';
 
     if (body.password === correctPassword) {
-      // 生成随机token
-      const token = Array.from({ length: 32 }, () =>
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
-      ).join('');
-      return createResponse({
+      // 生成随机 token
+      const token = generateToken(32);
+
+      // 创建 session 存储到数据库
+      const expiresAt = await createSession(env, token);
+
+      // 构建响应
+      const response = createResponse({
         success: true,
         token: token,
         user: { id: 1, username: 'admin', isAdmin: true }
-      }, 200);
+      }, 200, corsHeaders);
+
+      // 判断是否 HTTPS - HTTPS 用 SameSite=None; Secure，HTTP 用 SameSite=Lax
+      const url = new URL(request.url);
+      const isHttps = url.protocol === 'https:';
+      const cookieAttr = isHttps
+        ? `memos_token=${token}; Path=/; HttpOnly; SameSite=None; Secure`
+        : `memos_token=${token}; Path=/; HttpOnly; SameSite=Lax`;
+
+      response.headers.set('Set-Cookie', cookieAttr);
+
+      return response;
     } else {
-      return createResponse({ success: false, error: 'Incorrect password' }, 401);
+      return createResponse({ success: false, error: '口令错误' }, 401, corsHeaders);
     }
+  } catch (error) {
+    return createErrorResponse(error.message, 500);
+  }
+}
+
+// POST /api/auth/logout - 登出
+export async function logout(request, env) {
+  try {
+    // 从 cookie 或 header 获取 token
+    const cookie = request.headers.get('Cookie') || '';
+    const match = cookie.match(/memos_token=([^;]+)/);
+    const token = match ? match[1] : null;
+    
+    // 删除 session
+    if (token) {
+      await env.DB.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
+    }
+    
+    const response = createResponse({ success: true, message: 'Logged out' }, 200);
+    
+    // 清除 cookie
+    response.headers.set('Set-Cookie', 'memos_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0');
+    
+    return response;
   } catch (error) {
     return createErrorResponse(error.message, 500);
   }
@@ -139,12 +180,11 @@ export async function loginUser(request, env) {
       return createResponse({ success: false, error: 'Invalid username or password' }, 401);
     }
 
-    // 生成 token
-    const token = Array.from({ length: 32 }, () =>
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 62)]
-    ).join('');
-
-    return createResponse({
+    // 生成 token 并创建 session
+    const token = generateToken(32);
+    await createSession(env, token);
+    
+    const response = createResponse({
       success: true,
       token: token,
       user: {
@@ -153,6 +193,11 @@ export async function loginUser(request, env) {
         isAdmin: user.is_admin === 1
       }
     }, 200);
+    
+    // 设置 cookie
+    response.headers.set('Set-Cookie', `memos_token=${token}; Path=/; HttpOnly; SameSite=Strict`);
+    
+    return response;
   } catch (error) {
     return createErrorResponse(error.message, 500);
   }
